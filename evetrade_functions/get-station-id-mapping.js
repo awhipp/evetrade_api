@@ -1,11 +1,11 @@
-// Returns the EVE Online List of Stations
+// Returns the EVE Online Station ID Mappings
 
 const AWS = require('aws-sdk');
 AWS.config.update({region: 'us-east-1'});
 
 const s3 = new AWS.S3();
 
-const resource_name = 'stationList.json'
+const resource_name = 'stationIdToName.json'
 
 exports.handler = async function(event, context) {
     const DOWNLOAD_PARAMS = {
