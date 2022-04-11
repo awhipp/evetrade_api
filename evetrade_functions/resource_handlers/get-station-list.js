@@ -18,7 +18,7 @@ exports.handler = async function(event, context) {
     .then( data => { 
         console.log(`Successfully retrieved ${resource_name}`);
         return {
-            'body': JSON.parse(data.Body.toString('utf-8'))
+            'body': JSON.parse(data.Body.toString('utf-8')).concat(['Jita', 'Amarr', 'Dodixie', 'Rens', 'Hek'])
         };
     })
     .catch( err => { 
