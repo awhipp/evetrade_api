@@ -1,0 +1,12 @@
+{
+    "queryStringParameters": {
+        "from": "[{\"region\":10000002}]",
+        "to": "[{\"region\":10000043}]",
+        "tax": 0.08,
+        "minProfit": 500000,
+        "minROI": 0.05,
+        "routeSafety": "shortest",
+        "fromType": "sell",
+        "toType": "buy"
+    }
+}
