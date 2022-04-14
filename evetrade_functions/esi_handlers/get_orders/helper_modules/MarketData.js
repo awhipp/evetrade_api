@@ -8,7 +8,7 @@ class MarketData {
      * Builds the specific MarketData Class
      * @param {*} region Region of Interest
      * @param {*} order_type Order Type of Interest
-     * @param {*} station_ids List of Stations of Interst (can be undefined)
+     * @param {*} station_ids List of Stations of Interest (can be undefined)
      */
     constructor (region, order_type, station_ids) {
         this.region = region;

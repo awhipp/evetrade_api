@@ -8,7 +8,7 @@ const s3 = new AWS.S3();
 
 let typeIDToName, stationIdToName, systemIdToSecurity;
 
-const jumpCount = {}
+const jumpCount = {};
 
 /**
  * Generates and executes market data requests based on the requested queries
@@ -16,25 +16,11 @@ const jumpCount = {}
  * @param {*} orderType 
  * @returns Market Data Mapping which has all the requests executed
  */
-function aggregate_mapping(inputList, orderType) {
-    const aggregate = {};
-
-    for (const obj of inputList) {
-        const region = obj.region;
-        const station = obj.station;
-        if (aggregate[region] == undefined) {
-            aggregate[region] = [];
-        }
-        
-        if (station !== undefined) {
-            aggregate[region].push(station);
-        }
-    }
-    
+function aggregate_mapping(locations, orderType) {
     const marketDataMapping = {};
     
-    for (const region in aggregate){
-        const stations = aggregate[region];
+    for (const region in locations){
+        const stations = locations[region];
         
         marketDataMapping[region] = new MarketData(region, orderType, stations);
         marketDataMapping[region].executeRequest();
@@ -67,6 +53,8 @@ function get_aggregate_orders(fromMapping, toMapping) {
             }
             
             if (completeExecution) {
+                clearInterval(interval);
+                
                 const orders = {
                     'from': [],
                     'to': []
@@ -80,12 +68,11 @@ function get_aggregate_orders(fromMapping, toMapping) {
                     orders['to'] = orders['to'].concat(toMapping[region].orders);
                 }
 
-                clearInterval(interval);
                 resolve(orders);
             }
             
 
-        }, 100);
+        });
     });
 }
 
@@ -205,15 +192,13 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                         'Gross Margin': volume * (closingOrder.price - initialOrder.price),
                         'Sales Taxes': volume * (closingOrder.price * tax / 100),
                         'Net Profit': profit,
-                        'Jumps': -1,
-                        'Profit per Jump': -1,
                         'R.O.I.': (100 * ROI).toFixed(2) + "%",
                         'Total Volume (m3)': weight,
                     };
 
                     validTrades.push(newRecord);
 
-                    jumpCount[`${initialOrder.system_id}-${closingOrder.system_id}`] = ''
+                    jumpCount[`${initialOrder.system_id}-${closingOrder.system_id}`] = '';
                 }
             }
         }
@@ -231,7 +216,7 @@ async function get_number_of_jumps(safety, validTrades) {
     for (const route of routes) {
         const fromSystem = route.split('-')[0];
         const toSystem = route.split('-')[1];
-        const url = `https://esi.evetech.net/latest/route/${fromSystem}/${toSystem}/?datasource=tranquility&flag=${safety}`
+        const url = `https://esi.evetech.net/latest/route/${fromSystem}/${toSystem}/?datasource=tranquility&flag=${safety}`;
         request_count += 1;
 
         new Promise((resolve, reject) => {
@@ -270,12 +255,12 @@ async function get_number_of_jumps(safety, validTrades) {
                     const fromSystem = trades['From']['system_id'];
                     const toSystem = trades['Take To']['system_id'];
                     trades['Jumps'] = jumpCount[`${fromSystem}-${toSystem}`];
-                    trades['Profit per Jump'] = (parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'])).toFixed(2)
+                    trades['Profit per Jump'] = (parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'], 10)).toFixed(2);
                 }
                 
                 resolve(validTrades);
             }
-        }, 100)
+        });
     });
 }
 
@@ -294,7 +279,7 @@ function get_mappings() {
     .catch( err => { console.log(`Failed`, err); 
     });
 
-    DOWNLOAD_PARAMS.Key = `resources/stationIdToName.json`
+    DOWNLOAD_PARAMS.Key = `resources/stationIdToName.json`;
     s3.getObject(DOWNLOAD_PARAMS)
     .promise()
     .then( data => { 
@@ -305,7 +290,7 @@ function get_mappings() {
         console.log(`Failed`, err); 
     });
 
-    DOWNLOAD_PARAMS.Key = `resources/systemIdToSecurity.json`
+    DOWNLOAD_PARAMS.Key = `resources/systemIdToSecurity.json`;
     s3.getObject(DOWNLOAD_PARAMS)
     .promise()
     .then( data => { 
@@ -315,6 +300,29 @@ function get_mappings() {
     .catch( err => { 
         console.log(`Failed`, err); 
     });
+}
+
+function convert_locations(locations) {
+    const splitValues = {};
+    
+    const individualLocations = locations.split(',');
+    
+    for (const location of individualLocations) {
+        if (location.indexOf(':') > 0) {
+            const region = parseInt(location.split(':')[0], 10);
+            const station = parseInt(location.split(':')[1], 10);
+            
+            if(splitValues[region] === undefined) {
+                splitValues[region] = [];
+            }
+            
+            splitValues[region].push(station);
+        } else {
+            splitValues[location] = [];
+        }
+    }
+    
+    return splitValues;
 }
 
 /**
@@ -327,8 +335,8 @@ exports.handler = async function(event, context) {
     console.log(event);
     const startTime = new Date();
     const queries = event["queryStringParameters"];
-    const AGG_FROM = aggregate_mapping(JSON.parse(queries['from']), 'sell');
-    const AGG_TO = aggregate_mapping(JSON.parse(queries['to']), 'buy');
+    const AGG_FROM = aggregate_mapping(convert_locations(queries['from']), 'sell');
+    const AGG_TO = aggregate_mapping(convert_locations(queries['to']), 'buy');
     const SALES_TAX = queries['tax'] === undefined ? 0.08 : queries['tax'];
     const MIN_PROFIT = queries['minProfit'] === undefined ? 500000 : queries['minProfit'];
     const MIN_ROI = queries['minROI'] === undefined ? 0.04 : queries['minROI'];
@@ -352,14 +360,14 @@ exports.handler = async function(event, context) {
         remap_orders(orders['to'], TO_TYPE == 'buy' ? false : true)
     );
 
-    const validTrades = get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT);
+    let validTrades = get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT);
     console.log(`Valid Trades = ${validTrades.length}`);
 
-    const augmentedTrades = await get_number_of_jumps(ROUTE_SAFETY, validTrades);
+    validTrades = await get_number_of_jumps(ROUTE_SAFETY, validTrades);
 
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
     return {
-        'body': JSON.stringify(augmentedTrades)
+        'body': JSON.stringify(validTrades)
     };
 };
