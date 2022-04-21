@@ -335,8 +335,6 @@ exports.handler = async function(event, context) {
     console.log(event);
     const startTime = new Date();
     const queries = event["queryStringParameters"];
-    const AGG_FROM = aggregate_mapping(convert_locations(queries['from']), 'sell');
-    const AGG_TO = aggregate_mapping(convert_locations(queries['to']), 'buy');
     const SALES_TAX = queries['tax'] === undefined ? 0.08 : queries['tax'];
     const MIN_PROFIT = queries['minProfit'] === undefined ? 500000 : queries['minProfit'];
     const MIN_ROI = queries['minROI'] === undefined ? 0.04 : queries['minROI'];
@@ -348,10 +346,16 @@ exports.handler = async function(event, context) {
     
     // Get cached mappings files for easier processing later.
     get_mappings();
-
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
+    const AGG_FROM = aggregate_mapping(convert_locations(queries['from']), FROM_TYPE);
+    const AGG_TO = aggregate_mapping(convert_locations(queries['to']), TO_TYPE);
+
+    console.log(`Agg Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
+
     let orders = await get_aggregate_orders(AGG_FROM, AGG_TO);
+
+    console.log(`Order retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     // Grab one item per station in each each (cheaper for sell orders, expensive for buy orders)
     // Remove type Ids that do not exist in each side of the trade

@@ -87,7 +87,7 @@ class MarketData {
                     clearInterval(interval);
                     resolve();
                 }
-            }, 100);
+            });
         });
     }
 
@@ -109,6 +109,8 @@ class MarketData {
             .catch(function(err) { console.log(`Error getting data: ${err}`); });
     
             thiz.page += 1;
+
+            console.log(`Initial Market Data took: ${(new Date() - startTime) / 1000} seconds to process.`);
         
             // Get the remaining pages asynchronously
             for (; thiz.page <= thiz.page_count; thiz.page++) {
@@ -120,13 +122,13 @@ class MarketData {
                 .catch(function(err) { console.log(`Error getting data: ${err}`); });
             }
             console.log(`All Page Requests Sent: ${thiz.page_count} Pages.`);
+
+            console.log(`Market Data took: ${(new Date() - startTime) / 1000} seconds to process.`);
         
             // Wait for all pages to be returned
-            await thiz.waitForOrders().then(async function(){
-                const endTime = new Date();
-    
+            await thiz.waitForOrders().then(async function(){    
                 console.log(`${thiz.orders.length} orders returned to request.`);
-                console.log(`Total request took: ${(endTime - startTime) / 1000} seconds to process.`);
+                console.log(`Total request took: ${(new Date() - startTime) / 1000} seconds to process.`);
                 
                 thiz.completeExecution = true;
                 

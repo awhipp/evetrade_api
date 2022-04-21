@@ -1,12 +1,12 @@
 {
     "queryStringParameters": {
-        "from": "[{\"region\":10000002,\"station\":60003760}]",
-        "to": "[{\"region\":10000043,\"station\":60008494}]",
-        "tax": 0.08,
-        "minProfit": 500000,
-        "minROI": 0.05,
-        "routeSafety": "shortest",
-        "fromType": "sell",
-        "toType": "buy"
+      "from": "10000002:60003760,10000043:60008494",
+      "to": "10000043:60008494,10000002:60003760",
+      "tax": 0.08,
+      "minProfit": 500000,
+      "minROI": 0.05,
+      "routeSafety": "shortest",
+      "fromType": "sell",
+      "toType": "buy"
     }
-}
+  }
