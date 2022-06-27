@@ -1,0 +1,27 @@
+{
+    "invTypes.json": {
+        "queryStringParameters": {
+            "file": "invTypes.json"
+        }
+    },
+    "regionList.json": {
+        "queryStringParameters": {
+            "file": "regionList.json"
+        }
+    },
+    "stationIdToName.json": {
+        "queryStringParameters": {
+            "file": "stationIdToName.json"
+        }
+    },
+    "stationList.json": {
+        "queryStringParameters": {
+            "file": "stationList.json"
+        }
+    },
+    "universeList.json": {
+        "queryStringParameters": {
+            "file": "universeList.json"
+        }
+    }
+}

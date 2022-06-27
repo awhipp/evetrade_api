@@ -263,6 +263,7 @@ def get_valid_trades(data, tax, min_profit, min_roi, max_budget, max_weight):
 
     return valid_trades
 
+
 async def get_jump_count(session, from_system, to_system, route_safety):
     '''
     Gets jump count for a particular system to system route
@@ -273,6 +274,7 @@ async def get_jump_count(session, from_system, to_system, route_safety):
     async with session.get(url) as resp:
         data = await resp.json()
         jump_count[f'{from_system}-{to_system}'] =  len(data) - 1
+
 
 async def get_all_jump_counts(trades, route_safety):
     '''
@@ -295,6 +297,7 @@ async def get_all_jump_counts(trades, route_safety):
         trade['Profit per Jump'] = round_up(float(trade['Net Profit']) / int(trade['Jumps']))
 
     return trades
+
 
 def lambda_handler(event, context):
     '''

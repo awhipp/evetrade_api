@@ -6,16 +6,14 @@ AWS.config.update({region: 'us-east-1'});
 
 const s3 = new AWS.S3();
 
-const RES_ENDPOINT = 'https://api.github.com/repos/awhipp/evetrade_resources/contents/resources';
+// Get data from REST API and return as JSON
+function get_request(url) {
+    const options = {
+        headers: {
+            'User-Agent': 'evetrade-api-lambda'
+        }
+    };
 
-const options = {
-    headers: {
-        'User-Agent': 'evetrade-api-lambda'
-    }
-};
-
-function get_request(url, options) {
-    
     return new Promise((resolve, reject) => {
         const req = https.get(url, options, res => {
             let rawData = '';
@@ -39,6 +37,7 @@ function get_request(url, options) {
     });
 }
 
+// Maps Security Rating to Security Code
 function get_security_code(security) {
     if (security >= 0.5) {
         return "high_sec";
@@ -51,6 +50,7 @@ function get_security_code(security) {
     }
 }
 
+// Asynchronous Function to upload JSON to S3
 async function upload_to_s3(bucket, key, body, contentType) {
     const UPLOAD_PARAMS = {
         Bucket: bucket,
@@ -102,13 +102,16 @@ async function upload_to_s3(bucket, key, body, contentType) {
     }
 }
 
+// Lambda function which pulls data from GitHub resource and uploads to S3
 exports.handler = async function(event, context) {    
+    const RES_ENDPOINT = 'https://api.github.com/repos/awhipp/evetrade_resources/contents/resources';
+
     console.log(`Sending Request to ${RES_ENDPOINT}`);
     
-    const data = await get_request(RES_ENDPOINT, options);
+    const data = await get_request(RES_ENDPOINT);
     
     for (var i = 0; i < data.length; i++) {
-        const body = await get_request(data[i].download_url, options);
+        const body = await get_request(data[i].download_url);
 
         await upload_to_s3('evetrade', `resources/${data[i].name}`, JSON.stringify(body), 'application/json');
     }
