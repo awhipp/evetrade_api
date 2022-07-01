@@ -1,7 +1,6 @@
 import json
 import time
 import boto3
-import sys
 import os
 from psycopg2 import connect
 import asyncio
@@ -47,11 +46,15 @@ def float_to_percent(float_value):
 
 # Executes RESTful request against the Eve API to get market data for a given region
 # and saves it to the local file system
-def get_data(region_ids, skip_list):
+def get_data(region_ids):
     idx = 0
+
+    print('Flagging orders for later removal...')
+    execute_sql(
+        generate_update_flag_sql()
+    )
+
     for region_id in region_ids:
-        if region_id in skip_list:
-            continue
 
         percent_complete = float_to_percent(idx / len(region_ids))
         idx+=1 
@@ -67,35 +70,30 @@ def get_data(region_ids, skip_list):
 
         for order in orders:
             if 'location_id' in order and order['location_id'] < 99999999:
-
-                            #   region_id, system_id,           station_id,             is_buy_order,               min_volume,         volume_remain,              volume_total,           order_id,             price,            range,          type_id,            flagged    
                 new_order = f'( {region_id}, {order["system_id"]}, {order["location_id"]}, {order["is_buy_order"]}, {order["min_volume"]}, {order["volume_remain"]}, {order["volume_total"]}, {order["order_id"]}, {order["price"]}, \'{order["range"]}\', {order["type_id"]}, false )'
 
                 orders_to_upsert.append(new_order)
                 total_orders += 1
             
         if total_orders > 0:
-            execute_sql(
-                generate_update_flag_sql(region_id)
-            )
 
             updated_records = execute_sql(
                 generate_upsert_sql_from_array(orders_to_upsert)
             )
             print(f'--- {updated_records} records added/updated')
 
-            removed_records = execute_sql(
-                generate_removal_sql(region_id)
-            )
-            print(f'--- {removed_records} old records removed')
+    print('Removing any outdated orders...')
+    removed_records = execute_sql(
+        generate_removal_sql(region_id)
+    )
+    print(f'--- {removed_records} old records removed')
             
 
-def generate_update_flag_sql(region_id):
-    sql = f'UPDATE market_data.orders SET flagged = true WHERE region_id = {region_id}'
+def generate_update_flag_sql():
+    sql = f'UPDATE market_data.orders SET flagged = true'
     return sql
 
 def generate_upsert_sql_from_array(array):
-
     sql = 'INSERT INTO market_data.orders(region_id, system_id, station_id, is_buy_order, min_volume, volume_remain, volume_total, order_id, price, range, type_id, flagged) VALUES '
     sql += ', '.join(array)
     sql += ' ON CONFLICT (order_id) DO UPDATE'
@@ -105,8 +103,8 @@ def generate_upsert_sql_from_array(array):
 
     return sql
 
-def generate_removal_sql(region_id):
-    sql = f'DELETE FROM market_data.orders WHERE region_id = {region_id} AND flagged = true'
+def generate_removal_sql():
+    sql = f'DELETE FROM market_data.orders WHERE flagged = true'
     return sql
 
 # Upserts array into postgres table
@@ -122,14 +120,8 @@ def execute_sql(sql):
 start = time.time()
 
 region_ids = get_region_ids()
-exclusion_list = []
+get_data(region_ids)
 
-if sys.argv[1] == 'all':
-    exclusion_list = sys.argv[2].split(',')
-else:
-    region_ids = sys.argv[1].split(',')
-
-get_data(region_ids, exclusion_list)
 end = time.time()
 minutes = (end - start) / 60
 print(f'Completed in {minutes} minutes')
