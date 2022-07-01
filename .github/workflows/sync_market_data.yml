@@ -8,17 +8,15 @@ on:
       - master
       - python-refactor
   schedule:
-    - cron:  '*/10 * * * *' 
+    - cron:  '*/5 * * * *' 
     
 env:
   ## Sets environment variable
   AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
   AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
   AWS_BUCKET: ${{ secrets.AWS_BUCKET }}
-  PG_HOST: ${{ secrets.PG_HOST }}
-  PG_USER: ${{ secrets.PG_USER }}
-  PG_DB: ${{ secrets.PG_DB }}
-  PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+  ES_ALIAS: ${{ secrets.ES_ALIAS }}
+  ES_HOST: ${{ secrets.ES_HOST }}
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:

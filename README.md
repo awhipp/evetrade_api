@@ -12,4 +12,4 @@ The serverless backend API which assists in computation for EVETrade.space
 
 ### Proposed Future State (V 7.x +)
 
-![Proposed Future State](https://i.imgur.com/oGXCBUL.png)
+![Proposed Future State](https://i.imgur.com/gH8gMaI.png)

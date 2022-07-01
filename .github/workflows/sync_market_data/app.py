@@ -1,19 +1,21 @@
+import os
 import json
 import time
 import boto3
-import os
-from psycopg2 import connect
 import asyncio
+
+from retrying import retry
+from datetime import datetime
 from market_data import MarketData
+from requests_aws4auth import AWS4Auth
+from elasticsearch import Elasticsearch, RequestsHttpConnection, helpers
 
 AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
 AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
 AWS_BUCKET = os.environ['AWS_BUCKET']
 
-PG_HOST = os.environ['PG_HOST']
-PG_USER = os.environ['PG_USER']
-PG_DB = os.environ['PG_DB']
-PG_PASSWORD = os.environ['PG_PASSWORD']
+ES_ALIAS = os.environ['ES_ALIAS']
+ES_HOST = os.environ['ES_HOST']
 
 s3 = boto3.client(
     's3', 
@@ -21,12 +23,7 @@ s3 = boto3.client(
     aws_secret_access_key=AWS_SECRET_KEY
 )
 
-conn = connect (
-    dbname = PG_DB,
-    user = PG_USER,
-    host = PG_HOST,
-    password = PG_PASSWORD
-)
+awsauth = AWS4Auth(AWS_ACCESS_KEY, AWS_SECRET_KEY, 'us-east-1', 'es')
 
 # Function which pulls mapRegions.json file from S3
 # and returns the regionID values as an array
@@ -46,14 +43,11 @@ def float_to_percent(float_value):
 
 # Executes RESTful request against the Eve API to get market data for a given region
 # and saves it to the local file system
+@retry(stop_max_attempt_number=5, wait_random_min=1000, wait_random_max=5000)
 def get_data(region_ids):
     idx = 0
 
-    print('Flagging orders for later removal...')
-    execute_sql(
-        generate_update_flag_sql()
-    )
-
+    all_orders = []
     for region_id in region_ids:
 
         percent_complete = float_to_percent(idx / len(region_ids))
@@ -64,65 +58,102 @@ def get_data(region_ids):
         market_data = MarketData(region_id)
 
         orders = asyncio.run(market_data.execute_requests())
+        all_orders = all_orders + orders
 
-        orders_to_upsert = []
-        total_orders = 0
+    return all_orders
 
-        for order in orders:
-            if 'location_id' in order and order['location_id'] < 99999999:
-                new_order = f'( {region_id}, {order["system_id"]}, {order["location_id"]}, {order["is_buy_order"]}, {order["min_volume"]}, {order["volume_remain"]}, {order["volume_total"]}, {order["order_id"]}, {order["price"]}, \'{order["range"]}\', {order["type_id"]}, false )'
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
 
-                orders_to_upsert.append(new_order)
-                total_orders += 1
-            
-        if total_orders > 0:
+def create_index(es):
+    now = datetime.now()
+    dt_string = now.strftime("%Y%m%d-%H%M")  
 
-            updated_records = execute_sql(
-                generate_upsert_sql_from_array(orders_to_upsert)
-            )
-            print(f'--- {updated_records} records added/updated')
+    index_name = f'market-data-{dt_string}'
+    print(f'Creating new index {index_name}')
 
-    print('Removing any outdated orders...')
-    removed_records = execute_sql(
-        generate_removal_sql()
-    )
-    print(f'--- {removed_records} old records removed')
-            
+    es_index_settings = {
+	    "settings" : {
+	        "number_of_shards": 1,
+	        "number_of_replicas": 0,
+            "index.max_result_window": 2000000
+	    }
+    }
 
-def generate_update_flag_sql():
-    sql = f'UPDATE market_data.orders SET flagged = true'
-    return sql
+    es.indices.create(index = index_name, body = es_index_settings)
+    return index_name
 
-def generate_upsert_sql_from_array(array):
-    sql = 'INSERT INTO market_data.orders(region_id, system_id, station_id, is_buy_order, min_volume, volume_remain, volume_total, order_id, price, range, type_id, flagged) VALUES '
-    sql += ', '.join(array)
-    sql += ' ON CONFLICT (order_id) DO UPDATE'
-    sql += ' SET region_id = EXCLUDED.region_id, system_id = EXCLUDED.system_id, is_buy_order = EXCLUDED.is_buy_order, min_volume = EXCLUDED.min_volume, ' \
-        'volume_remain = EXCLUDED.volume_remain, volume_total = EXCLUDED.volume_total, price = EXCLUDED.price, range = EXCLUDED.range, type_id = EXCLUDED.type_id, ' \
-        'flagged = EXCLUDED.flagged;'
+def load_orders_to_es(es, index_name, all_orders):
+    print(f'Ingesting {len(all_orders)} orders into {index_name}')
+    helpers.bulk(es, all_orders, index=index_name, chunk_size=10000, request_timeout=30)
+    print(f'Ingestion into {index_name} complete')
 
-    return sql
+def get_index_with_alias(es, alias):
+    print(f'Getting index with alias {alias}')
+    if es.indices.exists_alias(name=alias):
+        return (list(es.indices.get_alias(index=alias).keys())[0])
+    return None
 
-def generate_removal_sql():
-    sql = f'DELETE FROM market_data.orders WHERE flagged = true'
-    return sql
+def update_alias(es, new_index, alias):
+    print(f'Removing adding {alias} to {new_index}')
+    if new_index and alias:
+        es.indices.update_aliases(body={
+            "actions": [
+                {
+                    "remove": {
+                        "index": "*",
+                        "alias": alias
+                    }
+                },
+                {
+                    "add": {
+                        "index": new_index,
+                        "alias": alias
+                    }
+                }
+            ]
+        })
 
-# Upserts array into postgres table
-def execute_sql(sql):
-    cursor = conn.cursor()
-    cursor.execute(sql)
-    row_count = cursor.rowcount
-    conn.commit()
-    cursor.close()
-    return row_count
+def refresh_index(es, index_name):
+    print(f'Refreshing index {index_name}')
+    if index_name and es.indices.exists(index_name):
+        es.indices.refresh(index=index_name)
 
+def delete_index(es, index_name):
+    print(f'Deleting index {index_name}')
+    if index_name and es.indices.exists(index_name):
+        es.indices.delete(index_name)
 
 start = time.time()
 
+es = Elasticsearch(
+    hosts = [{'host': ES_HOST, 'port': 443}],
+    http_auth = awsauth,
+    use_ssl = True,
+    verify_certs = True,
+    connection_class = RequestsHttpConnection
+)
+
 region_ids = get_region_ids()
-get_data(region_ids)
+all_orders = get_data(region_ids)
+
+index_name = create_index(es)
+
+try:
+    load_orders_to_es(es, index_name, all_orders)
+    previous_index = get_index_with_alias(es, ES_ALIAS)
+    update_alias(es, index_name, ES_ALIAS)
+    refresh_index(es, ES_ALIAS)
+    delete_index(es, previous_index)
+
+except Exception as e:
+    print(e)
+    print(f'Error ingesting data into {index_name}. Removing new index.')
+    delete_index(es, index_name)
+    raise e
 
 end = time.time()
 minutes = (end - start) / 60
-print(f'Completed in {minutes} minutes')
-conn.close()
+print(f'Completed in {minutes} minutes.')

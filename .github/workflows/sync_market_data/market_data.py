@@ -84,4 +84,22 @@ class MarketData:
             f'--- {end_time}s ({self.region} = {len(self.orders)} orders) ---'
         )
 
-        return self.orders
+        valid_orders = []
+
+        for order in self.orders:
+            if 'location_id' in order and order['location_id'] < 99999999:
+                valid_orders.append({
+                    'order_id': order['order_id'],
+                    'region_id': self.region,
+                    'system_id': order['system_id'],
+                    'station_id': order['location_id'],
+                    'is_buy_order': order['is_buy_order'],
+                    'type_id': order['type_id'],
+                    'volume_total': order['volume_total'],
+                    'volume_remain': order['volume_remain'],
+                    'min_volume': order['min_volume'],
+                    'range': order['range'],
+                    'price': order['price']
+                })
+
+        return [json.dumps(record) for record in valid_orders]
