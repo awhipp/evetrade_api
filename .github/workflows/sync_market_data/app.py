@@ -84,7 +84,7 @@ def get_data(region_ids):
 
     print('Removing any outdated orders...')
     removed_records = execute_sql(
-        generate_removal_sql(region_id)
+        generate_removal_sql()
     )
     print(f'--- {removed_records} old records removed')
             
