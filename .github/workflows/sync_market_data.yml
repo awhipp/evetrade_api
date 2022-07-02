@@ -3,10 +3,6 @@ name: Synchronize Market Data for EVE Online
 
 # Controls when the workflow will run
 on:
-  push:
-    branches:
-      - master
-      - python-refactor
   schedule:
     - cron:  '*/5 * * * *' 
     
