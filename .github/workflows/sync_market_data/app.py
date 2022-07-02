@@ -87,7 +87,7 @@ def create_index(es):
 
 def load_orders_to_es(es, index_name, all_orders):
     print(f'Ingesting {len(all_orders)} orders into {index_name}')
-    helpers.bulk(es, all_orders, index=index_name, chunk_size=10000, request_timeout=30)
+    helpers.bulk(es, all_orders, index=index_name, chunk_size=7500, request_timeout=30)
     print(f'Ingestion into {index_name} complete')
 
 def get_index_with_alias(es, alias):
