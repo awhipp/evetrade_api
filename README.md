@@ -2,7 +2,7 @@
 
 The serverless backend API which assists in computation for EVETrade.space
 
-[![Synchronize Market Data for EVE Online](https://github.com/awhipp/evetrade_api/actions/workflows/sync_market_data.yml/badge.svg)](https://github.com/awhipp/evetrade_api/actions/workflows/sync_market_data.yml)
+[![Data Ingestion Process](https://github.com/awhipp/evetrade_api/actions/workflows/check_data_sync.yml/badge.svg)](https://github.com/awhipp/evetrade_api/actions/workflows/check_data_sync.yml)
 
 **Currently in BETA and not implemented on the live site**
 

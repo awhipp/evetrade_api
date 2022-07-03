@@ -1,0 +1,39 @@
+# Ensures data is regularly ingested and raises Exception in the event of missing data
+name: Checking Data Sync
+
+# Controls when the workflow will run
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron:  '*/5 * * * *' 
+    
+env:
+  ES_HOST: ${{ secrets.ES_HOST }}
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  check_data:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+        
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+          architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+
+      - name: Grab Dependencies
+        run: |
+          pip install -r ./data_sync_service/requirements.txt
+
+      - name: Checking Data Sync
+        run: |
+          python ./data_sync_service/check_data.py
