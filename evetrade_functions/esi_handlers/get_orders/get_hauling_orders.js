@@ -1,7 +1,7 @@
 // Compares profitable hailing orders between stations and/or regions (or within the same region)
 const AWS = require('aws-sdk');
 const https = require('https');
-const MarketData = require('./helper_modules/MarketData.js').MarketData;
+const MarketData = require('./market_data.js').MarketData;
 
 AWS.config.update({region: 'us-east-1'});
 const s3 = new AWS.S3();
@@ -158,47 +158,48 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
         const fromKeys = Object.keys(fromStations);
         for (const fromStation of fromKeys) {
             const initialOrder = fromOrders[id][fromStation];
+            if (typeIDToName[initialOrder.type_id]) {
+                const toKeys = Object.keys(toStations);
+                for (const toStation of toKeys) {
+                    const closingOrder = toOrders[id][toStation];
+                    const volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
 
-            const toKeys = Object.keys(toStations);
-            for (const toStation of toKeys) {
-                const closingOrder = toOrders[id][toStation];
-                const volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
+                    const initialPrice = initialOrder.price * volume;
+                    const salePrice = closingOrder.price * volume * (1-tax);
+                    const profit = salePrice - initialPrice;
+                    const ROI = (salePrice-initialPrice)/initialPrice;
+                    const weight = typeIDToName[initialOrder.type_id].volume * volume;
+                    if (profit > minProfit && ROI >= minROI && initialPrice <= maxBudget && weight < maxWeight) {
+                        const newRecord = {
+                            'Item': typeIDToName[initialOrder.type_id].name,
+                            'From': {
+                                'name': stationIdToName[initialOrder.location_id],
+                                'system_id': initialOrder.system_id,
+                                'rating': systemIdToSecurity[initialOrder.system_id]["rating"],
+                                'security_code': systemIdToSecurity[initialOrder.system_id]["security_code"]
+                            },
+                            'Quantity': volume,
+                            'Buy Price': initialOrder.price,
+                            'Net Costs': volume * initialOrder.price,
+                            'Take To': {
+                                'name': stationIdToName[closingOrder.location_id],
+                                'system_id': closingOrder.system_id,
+                                'rating': systemIdToSecurity[closingOrder.system_id]["rating"],
+                                'security_code': systemIdToSecurity[closingOrder.system_id]["security_code"]
+                            },
+                            'Sell Price': closingOrder.price,
+                            'Net Sales': volume * closingOrder.price,
+                            'Gross Margin': volume * (closingOrder.price - initialOrder.price),
+                            'Sales Taxes': volume * (closingOrder.price * tax / 100),
+                            'Net Profit': profit,
+                            'R.O.I.': (100 * ROI).toFixed(2) + "%",
+                            'Total Volume (m3)': weight,
+                        };
 
-                const initialPrice = initialOrder.price * volume;
-                const salePrice = closingOrder.price * volume * (1-tax);
-                const profit = salePrice - initialPrice;
-                const ROI = (salePrice-initialPrice)/initialPrice;
-                const weight = typeIDToName[initialOrder.type_id].volume * volume;
-                if (profit > minProfit && ROI >= minROI && initialPrice <= maxBudget && weight < maxWeight) {
-                    const newRecord = {
-                        'Item': typeIDToName[initialOrder.type_id].name,
-                        'From': {
-                            'name': stationIdToName[initialOrder.location_id],
-                            'system_id': initialOrder.system_id,
-                            'rating': systemIdToSecurity[initialOrder.system_id]["rating"],
-                            'security_code': systemIdToSecurity[initialOrder.system_id]["security_code"]
-                        },
-                        'Quantity': volume,
-                        'Buy Price': initialOrder.price,
-                        'Net Costs': volume * initialOrder.price,
-                        'Take To': {
-                            'name': stationIdToName[closingOrder.location_id],
-                            'system_id': closingOrder.system_id,
-                            'rating': systemIdToSecurity[closingOrder.system_id]["rating"],
-                            'security_code': systemIdToSecurity[closingOrder.system_id]["security_code"]
-                        },
-                        'Sell Price': closingOrder.price,
-                        'Net Sales': volume * closingOrder.price,
-                        'Gross Margin': volume * (closingOrder.price - initialOrder.price),
-                        'Sales Taxes': volume * (closingOrder.price * tax / 100),
-                        'Net Profit': profit,
-                        'R.O.I.': (100 * ROI).toFixed(2) + "%",
-                        'Total Volume (m3)': weight,
-                    };
+                        validTrades.push(newRecord);
 
-                    validTrades.push(newRecord);
-
-                    jumpCount[`${initialOrder.system_id}-${closingOrder.system_id}`] = '';
+                        jumpCount[`${initialOrder.system_id}-${closingOrder.system_id}`] = '';
+                    }
                 }
             }
         }

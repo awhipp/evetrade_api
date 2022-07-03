@@ -2,6 +2,8 @@
 
 The serverless backend API which assists in computation for EVETrade.space
 
+[![Synchronize Market Data for EVE Online](https://github.com/awhipp/evetrade_api/actions/workflows/sync_market_data.yml/badge.svg)](https://github.com/awhipp/evetrade_api/actions/workflows/sync_market_data.yml)
+
 **Currently in BETA and not implemented on the live site**
 
 ## Current vs. Future State
@@ -12,4 +14,4 @@ The serverless backend API which assists in computation for EVETrade.space
 
 ### Proposed Future State (V 7.x +)
 
-![Proposed Future State](https://i.imgur.com/oGXCBUL.png)
+![Proposed Future State](https://i.imgur.com/gH8gMaI.png)

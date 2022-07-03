@@ -1,0 +1,6 @@
+boto3==1.21.42
+aiohttp==3.8.1
+asyncio==3.4.3
+requests==2.27.1
+elasticsearch==7.10.1
+retrying==1.3.3
