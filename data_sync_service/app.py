@@ -170,7 +170,7 @@ def execute_sync():
         log(es, {
             'index_name': index_name,
             'start_time': start,
-            'end_time': time.time(),
+            'end_time': -1,
             'time_to_complete': 'N/A',
             'number_of_records': 0,
             'message': f'Failed to ingest data: {str(e)}'
