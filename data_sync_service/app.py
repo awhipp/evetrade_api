@@ -132,10 +132,10 @@ def delete_index(es, index_name):
     if index_name and es.indices.exists(index_name):
         es.indices.delete(index_name)
 
-def write_statistics(es, record):
-    if not es.indices.exists(index='metrics'):
-        es.indices.create(index = 'metrics')
-    es.index(index='metrics', body=record)
+def log(es, record):
+    if not es.indices.exists(index='data_log'):
+        es.indices.create(index = 'data_log')
+    es.index(index='data_log', body=record)
 
 @retry(wait_random_min=1000, wait_random_max=2000)
 def execute_sync():
@@ -154,18 +154,27 @@ def execute_sync():
         minutes = str(round((end - start) / 60, 2))
         print(f'Completed in {minutes} minutes.')
 
-        write_statistics(es, {
+        log(es, {
             'index_name': index_name,
             'start_time': start,
             'end_time': end,
             'time_to_complete': f'{minutes} minutes',
-            'number_of_records': order_count
+            'number_of_records': order_count,
+            'message': 'Success'
         })
 
     except Exception as e:
         print(e)
         print(f'Error ingesting data into {index_name}. Removing new index.')
         delete_index(es, index_name)
+        log(es, {
+            'index_name': index_name,
+            'start_time': start,
+            'end_time': time.time(),
+            'time_to_complete': 'N/A',
+            'number_of_records': 0,
+            'message': f'Failed to ingest data: {str(e)}'
+        })
         raise e
 
 while True:
