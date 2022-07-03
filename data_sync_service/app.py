@@ -5,6 +5,7 @@ import boto3
 import asyncio
 import threading
 
+from retrying import retry
 from datetime import datetime
 from market_data import MarketData
 from elasticsearch import Elasticsearch, helpers
@@ -136,32 +137,37 @@ def write_statistics(es, record):
         es.indices.create(index = 'metrics')
     es.index(index='metrics', body=record)
 
-start = time.time()
+@retry(wait_random_min=1000, wait_random_max=2000)
+def execute_sync():
+    start = time.time()
 
-index_name = create_index(es)
+    index_name = create_index(es)
 
-try:
-    region_ids = get_region_ids()
-    order_count = get_data(es, index_name, region_ids)
-    previous_index = get_index_with_alias(es, ES_ALIAS)
-    update_alias(es, index_name, ES_ALIAS)
-    refresh_index(es, ES_ALIAS)
-    delete_index(es, previous_index)
-    end = time.time()
-    minutes = str(round((end - start) / 60, 2))
-    print(f'Completed in {minutes} minutes.')
+    try:
+        region_ids = get_region_ids()
+        order_count = get_data(es, index_name, region_ids)
+        previous_index = get_index_with_alias(es, ES_ALIAS)
+        update_alias(es, index_name, ES_ALIAS)
+        refresh_index(es, ES_ALIAS)
+        delete_index(es, previous_index)
+        end = time.time()
+        minutes = str(round((end - start) / 60, 2))
+        print(f'Completed in {minutes} minutes.')
 
-    write_statistics(es, {
-        'index_name': index_name,
-        'start_time': start,
-        'end_time': end,
-        'time_to_complete': f'{minutes} minutes',
-        'number_of_records': order_count
-    })
+        write_statistics(es, {
+            'index_name': index_name,
+            'start_time': start,
+            'end_time': end,
+            'time_to_complete': f'{minutes} minutes',
+            'number_of_records': order_count
+        })
 
-except Exception as e:
-    print(e)
-    print(f'Error ingesting data into {index_name}. Removing new index.')
-    delete_index(es, index_name)
-    raise e
+    except Exception as e:
+        print(e)
+        print(f'Error ingesting data into {index_name}. Removing new index.')
+        delete_index(es, index_name)
+        raise e
+
+while True:
+    execute_sync()
 
