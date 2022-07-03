@@ -4,7 +4,7 @@ name: Synchronize Market Data for EVE Online
 on:
   push:
     branches:
-      - master
+      - main
   schedule:
     - cron:  '*/5 * * * *' 
     
