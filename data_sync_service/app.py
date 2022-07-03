@@ -3,12 +3,11 @@ import json
 import time
 import boto3
 import asyncio
+import threading
 
-from retrying import retry
 from datetime import datetime
 from market_data import MarketData
-from requests_aws4auth import AWS4Auth
-from elasticsearch import Elasticsearch, RequestsHttpConnection, helpers
+from elasticsearch import Elasticsearch, helpers
 
 AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
 AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
@@ -23,7 +22,7 @@ s3 = boto3.client(
     aws_secret_access_key=AWS_SECRET_KEY
 )
 
-awsauth = AWS4Auth(AWS_ACCESS_KEY, AWS_SECRET_KEY, 'us-east-1', 'es')
+es = Elasticsearch(ES_HOST)
 
 # Function which pulls mapRegions.json file from S3
 # and returns the regionID values as an array
@@ -43,11 +42,12 @@ def float_to_percent(float_value):
 
 # Executes RESTful request against the Eve API to get market data for a given region
 # and saves it to the local file system
-@retry(stop_max_attempt_number=5, wait_random_min=1000, wait_random_max=5000)
-def get_data(region_ids):
+def get_data(es, index_name, region_ids):
     idx = 0
 
-    all_orders = []
+    threads = []
+    order_count = 0
+
     for region_id in region_ids:
 
         percent_complete = float_to_percent(idx / len(region_ids))
@@ -58,26 +58,32 @@ def get_data(region_ids):
         market_data = MarketData(region_id)
 
         orders = asyncio.run(market_data.execute_requests())
-        all_orders = all_orders + orders
 
-    return all_orders
+        if len(orders) > 0:
+            thread = threading.Thread(
+                target=load_orders_to_es,
+                name=f'Ingesting Orders for {region_id}',
+                args=(es, index_name, orders, region_id)
+            )
+            thread.start()
+            threads.append(thread)
+            order_count += len(orders)
 
-def chunks(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+    for thread in threads:
+        thread.join()
+    
+    print(f'Finished ingesting {order_count} orders')
+    return order_count
 
 def create_index(es):
     now = datetime.now()
-    dt_string = now.strftime("%Y%m%d-%H%M")  
+    dt_string = now.strftime("%Y%m%d-%H%M%S")  
 
     index_name = f'market-data-{dt_string}'
     print(f'Creating new index {index_name}')
 
     es_index_settings = {
 	    "settings" : {
-	        "number_of_shards": 1,
-	        "number_of_replicas": 0,
             "index.max_result_window": 2000000
 	    }
     }
@@ -85,10 +91,9 @@ def create_index(es):
     es.indices.create(index = index_name, body = es_index_settings)
     return index_name
 
-def load_orders_to_es(es, index_name, all_orders):
-    print(f'Ingesting {len(all_orders)} orders into {index_name}')
-    helpers.bulk(es, all_orders, index=index_name, chunk_size=7500, request_timeout=30)
-    print(f'Ingestion into {index_name} complete')
+def load_orders_to_es(es, index_name, all_orders, region_id):
+    print(f'Ingesting {len(all_orders)} orders from {region_id} into {index_name}')
+    helpers.bulk(es, all_orders, index=index_name, request_timeout=30)
 
 def get_index_with_alias(es, alias):
     print(f'Getting index with alias {alias}')
@@ -126,27 +131,33 @@ def delete_index(es, index_name):
     if index_name and es.indices.exists(index_name):
         es.indices.delete(index_name)
 
+def write_statistics(es, record):
+    if not es.indices.exists(index='metrics'):
+        es.indices.create(index = 'metrics')
+    es.index(index='metrics', body=record)
+
 start = time.time()
-
-es = Elasticsearch(
-    hosts = [{'host': ES_HOST, 'port': 443}],
-    http_auth = awsauth,
-    use_ssl = True,
-    verify_certs = True,
-    connection_class = RequestsHttpConnection
-)
-
-region_ids = get_region_ids()
-all_orders = get_data(region_ids)
 
 index_name = create_index(es)
 
 try:
-    load_orders_to_es(es, index_name, all_orders)
+    region_ids = get_region_ids()
+    order_count = get_data(es, index_name, region_ids)
     previous_index = get_index_with_alias(es, ES_ALIAS)
     update_alias(es, index_name, ES_ALIAS)
     refresh_index(es, ES_ALIAS)
     delete_index(es, previous_index)
+    end = time.time()
+    minutes = str(round((end - start) / 60, 2))
+    print(f'Completed in {minutes} minutes.')
+
+    write_statistics(es, {
+        'index_name': index_name,
+        'start_time': start,
+        'end_time': end,
+        'time_to_complete': f'{minutes} minutes',
+        'number_of_records': order_count
+    })
 
 except Exception as e:
     print(e)
@@ -154,6 +165,3 @@ except Exception as e:
     delete_index(es, index_name)
     raise e
 
-end = time.time()
-minutes = (end - start) / 60
-print(f'Completed in {minutes} minutes.')
