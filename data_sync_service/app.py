@@ -156,7 +156,7 @@ def execute_sync():
         refresh_index(es, ES_ALIAS)
         delete_index(es, previous_index)
         end = time.time()
-        minutes = str(round((end - start) / 60, 2))
+        minutes = round((end - start) / 60, 2)
         print(f'Completed in {minutes} minutes.')
 
         log(es, {
@@ -208,7 +208,7 @@ PORT = 8080
 if 'PORT' in os.environ:
     PORT = os.environ['PORT']
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     thread = threading.Thread(target=background_task)
     thread.daemon = True
     thread.start()
