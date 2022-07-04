@@ -1,5 +1,6 @@
 import os
 import time
+import urllib.request
 
 from elasticsearch import Elasticsearch
 
@@ -33,3 +34,10 @@ if len(results) > 0:
     print(f'Found {len(results)} results')
 else:
     raise Exception('No new data ingested into Elasticsearch index for the last 10 minutes.')
+
+status_code = urllib.request.urlopen('https://evetrade-api.herokuapp.com/').getcode()
+
+if status_code == 200:
+    print('EVETrade Data Sync Service is up.')
+else:
+    raise Exception('EVETrade Data Sync Service is not running.')
