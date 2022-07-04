@@ -2,7 +2,6 @@ import os
 import json
 import time
 import boto3
-import logging
 import asyncio
 import threading
 
@@ -202,7 +201,33 @@ def background_task():
 
 @app.route("/")
 def run():
-    return "<h1>EVE Trade Data Sync Service is Running.</h1>"
+    return '''
+<!doctype html>
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <title>EVE Trade Data Sync Service</title>
+        <script type="text/javascript">
+            !function(a,b,c,d,e,f,g,h){a.RaygunObject=e,a[e]=a[e]||function(){
+            (a[e].o=a[e].o||[]).push(arguments)},f=b.createElement(c),g=b.getElementsByTagName(c)[0],
+            f.async=1,f.src=d,g.parentNode.insertBefore(f,g),h=a.onerror,a.onerror=function(b,c,d,f,g){
+            h&&h(b,c,d,f,g),g||(g=new Error(b)),a[e].q=a[e].q||[],a[e].q.push({
+            e:g})}}(window,document,"script","//cdn.raygun.io/raygun4js/raygun.min.js","rg4js");
+        </script>
+        <script type="text/javascript">
+            rg4js('apiKey', 'EfZUQt6fprohatzNdusB2g');
+            rg4js('enablePulse', true);
+        </script>
+    </head>
+
+    <body>
+        <h1>EVE Trade Data Sync Service is Running.</h1>
+    </body>
+</html>
+'''
 
 PORT = 8080
 if 'PORT' in os.environ:
