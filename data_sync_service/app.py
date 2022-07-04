@@ -183,6 +183,11 @@ def execute_sync():
         raise e
 
 while True:
-    execute_sync()
-    time.sleep(10)
+    try:
+        execute_sync()
+    except Exception as e:
+        print(f'Error executing sync.')
+        print(f'Exception: {str(e)}')
+    finally:
+        time.sleep(10)
 
