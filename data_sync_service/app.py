@@ -204,8 +204,12 @@ def background_task():
 def run():
     return "<h1>EVE Trade Data Sync Service is Running.</h1>"
 
+PORT = 8080
+if 'PORT' in os.environ:
+    PORT = os.environ['PORT']
+
 if __name__ == '__main__':    
     thread = threading.Thread(target=background_task)
     thread.daemon = True
     thread.start()
-    serve(app, host="0.0.0.0", port=os.environ('PORT', 8080))
+    serve(app, host="0.0.0.0", port=PORT)
