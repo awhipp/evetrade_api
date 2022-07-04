@@ -11,7 +11,7 @@ def get_recent_values(es, index_name, time):
             "bool": {
                 "filter": {
                     "range": {
-                        "end_time": {
+                        "epoch_end": {
                             "gt": time
                         }
                     }
@@ -25,11 +25,11 @@ def get_recent_values(es, index_name, time):
 
 es = Elasticsearch(ES_HOST)
 
-print(f'Getting recent values from {time.time() - 300}')
+print(f'Getting recent values from {time.time() - 60*10}')
 
-results = get_recent_values(es, 'data_log', time.time() - 300)
+results = get_recent_values(es, 'data_log', time.time() - 60*10)
 
 if len(results) > 0:
     print(f'Found {len(results)} results')
 else:
-    raise Exception('No new data ingested into Elasticsearch index for the last 5 minutes.')
+    raise Exception('No new data ingested into Elasticsearch index for the last 10 minutes.')

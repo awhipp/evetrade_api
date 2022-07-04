@@ -5,7 +5,6 @@ import boto3
 import asyncio
 import threading
 
-from retrying import retry
 from datetime import datetime
 from market_data import MarketData
 from elasticsearch import Elasticsearch, helpers
@@ -137,11 +136,12 @@ def log(es, record):
         es.indices.create(index = 'data_log')
     es.index(index='data_log', body=record)
 
-@retry(wait_random_min=1000, wait_random_max=2000)
 def execute_sync():
     start = time.time()
+    start_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     index_name = create_index(es)
+    print(f'--Executing sync on index {index_name}')
 
     try:
         region_ids = get_region_ids()
@@ -156,21 +156,26 @@ def execute_sync():
 
         log(es, {
             'index_name': index_name,
-            'start_time': start,
-            'end_time': end,
+            'epoch_start': start,
+            'epoch_end': end,
+            'start_datetime': start_datetime,
+            'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'time_to_complete': f'{minutes} minutes',
             'number_of_records': order_count,
             'message': 'Success'
         })
 
     except Exception as e:
-        print(e)
         print(f'Error ingesting data into {index_name}. Removing new index.')
+        print(f'Exception: {str(e)}')
+
         delete_index(es, index_name)
         log(es, {
             'index_name': index_name,
-            'start_time': start,
-            'end_time': -1,
+            'epoch_start': start,
+            'epoch_end': -1,
+            'start_datetime': start_datetime,
+            'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'time_to_complete': 'N/A',
             'number_of_records': 0,
             'message': f'Failed to ingest data: {str(e)}'
@@ -179,4 +184,5 @@ def execute_sync():
 
 while True:
     execute_sync()
+    time.sleep(10)
 
