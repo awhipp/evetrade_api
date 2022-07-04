@@ -2,9 +2,12 @@ import os
 import json
 import time
 import boto3
+import logging
 import asyncio
 import threading
 
+from flask import Flask
+from waitress import serve
 from datetime import datetime
 from market_data import MarketData
 from elasticsearch import Elasticsearch, helpers
@@ -15,6 +18,8 @@ AWS_BUCKET = os.environ['AWS_BUCKET']
 
 ES_ALIAS = os.environ['ES_ALIAS']
 ES_HOST = os.environ['ES_HOST']
+
+app = Flask(__name__)
 
 s3 = boto3.client(
     's3', 
@@ -51,7 +56,7 @@ def get_data(es, index_name, region_ids):
     for region_id in region_ids:
 
         percent_complete = float_to_percent(idx / len(region_ids))
-        idx+=1 
+        idx+=1
 
         print(f'Getting data for {region_id} ({percent_complete})')
 
@@ -165,9 +170,12 @@ def execute_sync():
             'message': 'Success'
         })
 
+        if minutes > 4:
+            print(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
+            time.sleep(60)
+
     except Exception as e:
-        print(f'Error ingesting data into {index_name}. Removing new index.')
-        print(f'Exception: {str(e)}')
+        print(f'Error ingesting data into {index_name}. Removing new index. Exception: {str(e)}')
 
         delete_index(es, index_name)
         log(es, {
@@ -182,12 +190,22 @@ def execute_sync():
         })
         raise e
 
-while True:
-    try:
-        execute_sync()
-    except Exception as e:
-        print(f'Error executing sync.')
-        print(f'Exception: {str(e)}')
-    finally:
-        time.sleep(10)
 
+def background_task():
+    while True:
+        try:
+            execute_sync()
+        except Exception as e:
+            print(f'Error executing sync. Exception: {str(e)}')
+        finally:
+            time.sleep(10)
+
+@app.route("/")
+def run():
+    return "<h1>EVE Trade Data Sync Service is Running.</h1>"
+
+if __name__ == '__main__':    
+    thread = threading.Thread(target=background_task)
+    thread.daemon = True
+    thread.start()
+    serve(app, host="0.0.0.0", port=80)

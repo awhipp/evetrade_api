@@ -1,0 +1,1 @@
+web: pip install -r ./data_sync_service/requirements.txt && python ./data_sync_service/app.py
