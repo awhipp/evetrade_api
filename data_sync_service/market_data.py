@@ -123,9 +123,17 @@ class MarketData:
         for station_id in best_orders:
             for type_id in best_orders[station_id]:
                 if 'buy_order' in best_orders[station_id][type_id]:
-                    valid_orders.append(best_orders[station_id][type_id]['buy_order'])
+                    order = best_orders[station_id][type_id]['buy_order']
+                    order['station_id'] = order['location_id']
+                    order['region_id'] = self.region
+                    del order['location_id']
+                    valid_orders.append(order)
                 if 'sell_order' in best_orders[station_id][type_id]:
-                    valid_orders.append(best_orders[station_id][type_id]['sell_order'])
+                    order = best_orders[station_id][type_id]['sell_order']
+                    order['station_id'] = order['location_id']
+                    order['region_id'] = self.region
+                    del order['location_id']
+                    valid_orders.append(order)
         
         end_time = round(time.time() - start_time, 4)
 
