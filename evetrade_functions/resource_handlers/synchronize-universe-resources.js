@@ -88,16 +88,17 @@ async function upload_to_s3(bucket, key, body, contentType) {
         const systemIdToSecurity = {};
         for (const obj in json) {
             const metadata = json[obj];
-            const systemId = metadata["system"];
-            const security = metadata["security"];
-            const securityCode = get_security_code(security);
-
-            systemIdToSecurity[systemId] = {
-                "rating": security,
-                "security_code": securityCode
-            };
+            if (metadata["security"] != undefined) {
+                const systemId = metadata["system"];
+                const security = metadata["security"];
+                const securityCode = get_security_code(security);
+    
+                systemIdToSecurity[systemId] = {
+                    "rating": security,
+                    "security_code": securityCode
+                };
+            }
         }
-
         await upload_to_s3('evetrade', 'resources/systemIdToSecurity.json', JSON.stringify(systemIdToSecurity), 'application/json');
     }
 }
