@@ -202,7 +202,6 @@ def execute_sync():
         order_count = get_data(index_name, region_ids)
         update_alias(index_name, ES_ALIAS)
         refresh_index(ES_ALIAS)
-        delete_index(previous_index)
         end = time.time()
         minutes = round((end - start) / 60, 2)
         print(f'Completed in {minutes} minutes.')
