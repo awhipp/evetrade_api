@@ -1,3 +1,7 @@
+'''
+Service validation GitHub Action
+'''
+
 import os
 import time
 import urllib.request
@@ -6,14 +10,19 @@ from elasticsearch import Elasticsearch
 
 ES_HOST = os.environ['ES_HOST']
 
-def get_recent_values(es, index_name, time):
+es_client = Elasticsearch(ES_HOST)
+
+def get_recent_values(index_name, limit):
+    '''
+    Gets the most recent values from the given index
+    '''
     query = {
         "query": {
             "bool": {
                 "filter": {
                     "range": {
                         "epoch_end": {
-                            "gt": time
+                            "gt": limit
                         }
                     }
                 }
@@ -21,14 +30,13 @@ def get_recent_values(es, index_name, time):
         }
     }
 
-    results = es.search(index=index_name, body=query)
-    return results['hits']['hits']
+    hits = es_client.search(index=index_name, body=query)
+    return hits['hits']['hits']
 
-es = Elasticsearch(ES_HOST)
 
 print(f'Getting recent values from {time.time() - 60*10}')
 
-results = get_recent_values(es, 'data_log', time.time() - 60*10)
+results = get_recent_values('data_log', time.time() - 60*10)
 
 if len(results) > 0:
     print(f'Found {len(results)} results')

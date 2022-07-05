@@ -1,7 +1,6 @@
 '''
 market_data module is a helper module for other EVETrade functions
 '''
-
 import sys
 import time
 import json
@@ -9,7 +8,6 @@ import asyncio
 import aiohttp
 import requests
 
-from retrying import retry
 
 ESI_ENDPOINT = 'https://esi.evetech.net'
 
@@ -32,9 +30,7 @@ class MarketData:
         String representation of a MarketData class
         '''
         return json.dumps({
-            'region': self.region,
-            'order_type': self.order_type,
-            'station_ids': self.station_ids
+            'region': self.region
         })
 
     def construct_next_esi_endpoint(self, idx):
@@ -45,7 +41,6 @@ class MarketData:
                 f'/orders/?datasource=tranquility&order_type=all' \
                 f'&page={idx}'
 
-    @retry(wait_random_min=3000, wait_random_max=8000, stop_max_attempt_number=5)
     def get_initial_market_data(self, url):
         '''
         Gets an initial page of market data (synchronously) in order to get the number of pages
@@ -61,7 +56,6 @@ class MarketData:
             time.sleep(5)
 
     @staticmethod
-    @retry(wait_random_min=3000, wait_random_max=8000, stop_max_attempt_number=5)
     async def get_market_data(session, url):
         '''
         Asynchronously requests the market data for a given ESI page
@@ -69,7 +63,6 @@ class MarketData:
         async with session.get(url) as resp:
             return await resp.json()
 
-    @retry(wait_random_min=3000, wait_random_max=8000, stop_max_attempt_number=5)
     async def execute_requests(self):
         '''
         Executes all requests for a given market data class
@@ -91,10 +84,6 @@ class MarketData:
                 self.orders = self.orders + order_page
 
         best_orders = {}
-
-        # TODO for buy orders only keep the most expensive
-        # TODO for sell orders only keep the least expensive
-        # Cut down 1.1million records
 
         for order in self.orders:
             if 'location_id' in order and order['location_id'] < 99999999:
@@ -120,7 +109,7 @@ class MarketData:
 
         valid_orders = []
 
-        for station_id in best_orders:
+        for station_id in best_orders.items():
             for type_id in best_orders[station_id]:
                 if 'buy_order' in best_orders[station_id][type_id]:
                     order = best_orders[station_id][type_id]['buy_order']
@@ -134,13 +123,14 @@ class MarketData:
                     order['region_id'] = self.region
                     del order['location_id']
                     valid_orders.append(order)
-        
+
         end_time = round(time.time() - start_time, 4)
 
         if len(self.orders) > 0:
             percentage_of_orders = round((1 - (len(valid_orders) / len(self.orders))) * 100, 2)
             print(
-                f'--- {end_time}s ({self.region} = {len(valid_orders)} orders of {len(self.orders)} original orders ({percentage_of_orders}% less)) ---'
+                f'--- {end_time}s ({self.region} = {len(valid_orders)} orders of ' + \
+                f'{len(self.orders)} original orders ({percentage_of_orders}% less)) ---'
             )
 
         return [json.dumps(record) for record in valid_orders]

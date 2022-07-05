@@ -1,13 +1,17 @@
+'''
+Data Sync Service which pulls data from the EVE API and loads it into the Elasticsearch instance
+'''
+
 import os
 import json
 import time
-import boto3
+from datetime import datetime
 import asyncio
 import threading
+import boto3
 
 from flask import Flask
 from waitress import serve
-from datetime import datetime
 from market_data import MarketData
 from elasticsearch import Elasticsearch, helpers
 
@@ -21,17 +25,19 @@ ES_HOST = os.environ['ES_HOST']
 app = Flask(__name__)
 
 s3 = boto3.client(
-    's3', 
+    's3',
     aws_access_key_id=AWS_ACCESS_KEY,
     aws_secret_access_key=AWS_SECRET_KEY
 )
 
-es = Elasticsearch(ES_HOST)
+es_client = Elasticsearch(ES_HOST)
 
 # Function which pulls mapRegions.json file from S3
 # and returns the regionID values as an array
 def get_region_ids():
-
+    '''
+    Gets the region IDs from the mapRegions.json file
+    '''
     s3_file = s3.get_object(Bucket=AWS_BUCKET, Key='resources/mapRegions.json')
     s3_file_json = json.loads(s3_file['Body'].read())
 
@@ -42,11 +48,15 @@ def get_region_ids():
     return region_ids
 
 def float_to_percent(float_value):
+    '''
+    Converts a float value to a percent value
+    '''
     return str(round(float_value * 100, 2)) + '%'
 
-# Executes RESTful request against the Eve API to get market data for a given region
-# and saves it to the local file system
-def get_data(es, index_name, region_ids):
+def get_data(index_name, region_ids):
+    '''
+    Gets market data for a given region and saves it to the local file system
+    '''
     idx = 0
 
     threads = []
@@ -67,7 +77,7 @@ def get_data(es, index_name, region_ids):
             thread = threading.Thread(
                 target=load_orders_to_es,
                 name=f'Ingesting Orders for {region_id}',
-                args=(es, index_name, orders, region_id)
+                args=(es_client, index_name, orders, region_id)
             )
             thread.start()
             threads.append(thread)
@@ -75,15 +85,14 @@ def get_data(es, index_name, region_ids):
 
     for thread in threads:
         thread.join()
-    
+
     print(f'Finished ingesting {order_count} orders')
     return order_count
 
-def create_index(es):
-    now = datetime.now()
-    dt_string = now.strftime("%Y%m%d-%H%M%S")  
-
-    index_name = f'market-data-{dt_string}'
+def create_index(index_name):
+    '''
+    Creates the index for the data sync service
+    '''    
     print(f'Creating new index {index_name}')
 
     es_index_settings = {
@@ -92,23 +101,32 @@ def create_index(es):
 	    }
     }
 
-    es.indices.create(index = index_name, body = es_index_settings)
+    es_client.indices.create(index = index_name, body = es_index_settings)
     return index_name
 
-def load_orders_to_es(es, index_name, all_orders, region_id):
+def load_orders_to_es(index_name, all_orders, region_id):
+    '''
+    Loads a list of orders to the Elasticsearch instance
+    '''
     print(f'Ingesting {len(all_orders)} orders from {region_id} into {index_name}')
-    helpers.bulk(es, all_orders, index=index_name, request_timeout=30)
+    helpers.bulk(es_client, all_orders, index=index_name, request_timeout=30)
 
-def get_index_with_alias(es, alias):
+def get_index_with_alias(alias):
+    '''
+    Returns the index name that the alias points to
+    '''
     print(f'Getting index with alias {alias}')
-    if es.indices.exists_alias(name=alias):
-        return (list(es.indices.get_alias(index=alias).keys())[0])
+    if es_client.indices.exists_alias(name=alias):
+        return (list(es_client.indices.get_alias(index=alias).keys())[0])
     return None
 
-def update_alias(es, new_index, alias):
+def update_alias(new_index, alias):
+    '''
+    Updates the alias to point to the new index
+    '''
     print(f'Removing adding {alias} to {new_index}')
     if new_index and alias:
-        es.indices.update_aliases(body={
+        es_client.indices.update_aliases(body={
             "actions": [
                 {
                     "remove": {
@@ -125,40 +143,70 @@ def update_alias(es, new_index, alias):
             ]
         })
 
-def refresh_index(es, index_name):
+def refresh_index(index_name):
+    '''
+    Refreshes an index
+    '''
     print(f'Refreshing index {index_name}')
-    if index_name and es.indices.exists(index_name):
-        es.indices.refresh(index=index_name)
+    if index_name and es_client.indices.exists(index_name):
+        es_client.indices.refresh(index=index_name)
 
-def delete_index(es, index_name):
+def delete_index(index_name):
+    '''
+    Deletes an index from the Elasticsearch instance
+    '''
     print(f'Deleting index {index_name}')
-    if index_name and es.indices.exists(index_name):
-        es.indices.delete(index_name)
+    if index_name and es_client.indices.exists(index_name):
+        es_client.indices.delete(index_name)
 
-def log(es, record):
-    if not es.indices.exists(index='data_log'):
-        es.indices.create(index = 'data_log')
-    es.index(index='data_log', body=record)
+def log(record):
+    '''
+    Logs a record to the Elasticsearch instance
+    '''
+    if not es_client.indices.exists(index = 'data_log'):
+        es_client.indices.create(index = 'data_log')
+    es_client.index(index = 'data_log', body = record)
+
+def delete_stale_indices(protected_indices):
+    '''
+    Loop through all indices and delete any that are not currently in use
+    '''
+    indices = es_client.indices.get_alias(index='*')
+    for index in indices:
+        if index not in protected_indices:
+            print(f'Deleting stale index {index}')
+            delete_index(index)
 
 def execute_sync():
+    '''
+    Executes the data sync process
+    '''
     start = time.time()
+    now = datetime.now()
+
     start_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    index_name = create_index(es)
-    print(f'--Executing sync on index {index_name}')
 
     try:
+        index_name = f'market-data-{now.strftime("%Y%m%d-%H%M%S")}'
+        print(f'--Executing sync on index {index_name}')
+
+        previous_index = get_index_with_alias(ES_ALIAS)
+        delete_stale_indices([
+            previous_index, index_name, 'data_log'
+        ])
+
+        create_index(index_name)
         region_ids = get_region_ids()
-        order_count = get_data(es, index_name, region_ids)
-        previous_index = get_index_with_alias(es, ES_ALIAS)
-        update_alias(es, index_name, ES_ALIAS)
-        refresh_index(es, ES_ALIAS)
-        delete_index(es, previous_index)
+        order_count = get_data(index_name, region_ids)
+        update_alias(index_name, ES_ALIAS)
+        refresh_index(ES_ALIAS)
+        delete_index(previous_index)
         end = time.time()
         minutes = round((end - start) / 60, 2)
         print(f'Completed in {minutes} minutes.')
 
-        log(es, {
+        log({
             'index_name': index_name,
             'epoch_start': start,
             'epoch_end': end,
@@ -173,11 +221,14 @@ def execute_sync():
             print(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
             time.sleep(60)
 
-    except Exception as e:
-        print(f'Error ingesting data into {index_name}. Removing new index. Exception: {str(e)}')
+    except Exception as general_exception:
+        print(
+            f'Error ingesting data into {index_name}.' + \
+            f'Removing new index. Exception: {str(general_exception)}'
+        )
 
-        delete_index(es, index_name)
-        log(es, {
+        delete_index(index_name)
+        log({
             'index_name': index_name,
             'epoch_start': start,
             'epoch_end': -1,
@@ -185,22 +236,28 @@ def execute_sync():
             'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'time_to_complete': 'N/A',
             'number_of_records': 0,
-            'message': f'Failed to ingest data: {str(e)}'
+            'message': f'Failed to ingest data: {str(general_exception)}'
         })
-        raise e
+        raise general_exception
 
 
 def background_task():
+    '''
+    Executes the data sync process in the background
+    '''
     while True:
         try:
             execute_sync()
-        except Exception as e:
-            print(f'Error executing sync. Exception: {str(e)}')
+        except Exception as general_exception:
+            print(f'Error executing sync. Exception: {str(general_exception)}')
         finally:
             time.sleep(10)
 
 @app.route("/")
 def run():
+    '''
+    Runs the data sync process
+    '''
     return '''
 <!doctype html>
 
