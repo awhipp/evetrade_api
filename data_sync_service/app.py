@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 import asyncio
 import threading
+import traceback
 import boto3
 
 from flask import Flask
@@ -74,17 +75,17 @@ def get_data(index_name, region_ids):
         orders = asyncio.run(market_data.execute_requests())
 
         if len(orders) > 0:
-            thread = threading.Thread(
+            order_thread = threading.Thread(
                 target=load_orders_to_es,
                 name=f'Ingesting Orders for {region_id}',
-                args=(es_client, index_name, orders, region_id)
+                args=(index_name, orders, region_id)
             )
-            thread.start()
-            threads.append(thread)
+            order_thread.start()
+            threads.append(order_thread)
             order_count += len(orders)
 
-    for thread in threads:
-        thread.join()
+    for order_thread in threads:
+        order_thread.join()
 
     print(f'Finished ingesting {order_count} orders')
     return order_count
@@ -250,6 +251,7 @@ def background_task():
             execute_sync()
         except Exception as general_exception:
             print(f'Error executing sync. Exception: {str(general_exception)}')
+            traceback.print_exc()
         finally:
             time.sleep(10)
 

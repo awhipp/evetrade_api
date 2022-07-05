@@ -109,7 +109,7 @@ class MarketData:
 
         valid_orders = []
 
-        for station_id in best_orders.items():
+        for station_id in best_orders:
             for type_id in best_orders[station_id]:
                 if 'buy_order' in best_orders[station_id][type_id]:
                     order = best_orders[station_id][type_id]['buy_order']
