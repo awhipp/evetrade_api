@@ -1,7 +1,7 @@
 // Compares profitable hailing orders between stations and/or regions (or within the same region)
 const AWS = require('aws-sdk');
 const https = require('https');
-const MarketData = require('./market_data.js').MarketData;
+const { Client } = require('@elastic/elasticsearch')
 
 AWS.config.update({region: 'us-east-1'});
 const s3 = new AWS.S3();
@@ -16,105 +16,124 @@ const jumpCount = {};
  * @param {*} orderType 
  * @returns Market Data Mapping which has all the requests executed
  */
-function aggregate_mapping(locations, orderType) {
-    const marketDataMapping = {};
-    
-    for (const region in locations){
-        const stations = locations[region];
-        
-        marketDataMapping[region] = new MarketData(region, orderType, stations);
-        marketDataMapping[region].executeRequest();
-    }
-    
-    return marketDataMapping;
-}
+async function get_orders(locations, orderType) {
+    locations = locations.split(',');
 
-/**
- * Once all orders are received generate aggregate maps
- * @param {*} fromMapping The current mapping of MarketData classes for initial orders
- * @param {*} toMapping  The current mapping of MarketData classes for closing orders
- * @returns Mapping which aggregates all region orders
- */
-function get_aggregate_orders(fromMapping, toMapping) {
-    return new Promise(function (resolve) {
-        const interval = setInterval(async function() {
-            let completeExecution = true;
-            
-            for (const region in fromMapping){
-                if (!fromMapping[region].completeExecution) {
-                    completeExecution = false;
-                }
-            }
-            
-            for (const region in toMapping){
-                if (!toMapping[region].completeExecution) {
-                    completeExecution = false;
-                }
-            }
-            
-            if (completeExecution) {
-                clearInterval(interval);
-                
-                const orders = {
-                    'from': [],
-                    'to': []
-                };
-                
-                for (const region in fromMapping){
-                    orders['from'] = orders['from'].concat(fromMapping[region].orders);
-                }
-
-                for (const region in toMapping){
-                    orders['to'] = orders['to'].concat(toMapping[region].orders);
-                }
-
-                resolve(orders);
-            }
-            
-
-        });
+    const client = new Client({
+        node: process.env.ES_HOST
     });
-}
 
-/**
- * Maps to cheaper/expensive by station to ensure one item per station
- * @param {*} orders The full list of orders
- * @param {*} cheaper Whether we want cheaper (sell orders) or more expensive (buy orders) 
- * @returns Mapping of inidividual items in given stations that are most adventageous
- */
-function remap_orders(orders, cheaper) {
-    const newOrders = {};
-    for (const obj of orders) {
-        const typeId = obj.type_id;
-        const stationId = obj.location_id;
-        if (newOrders[typeId] === undefined) {
-            newOrders[typeId] = {};
-        } 
+    const is_buy_order = orderType === 'buy';
+    
+    const station_list = [];
+    const region_list = [];
 
-        if(newOrders[typeId][stationId] === undefined) {
-            newOrders[typeId][stationId] = obj;
+    let terms_clause = '';
+    for (const location of locations) {
+        if (location.indexOf(':') > -1) {
+            let split_location = location.split(':');
+            station_list.push(split_location[1]);
         } else {
-            if (cheaper && obj.price < newOrders[typeId][stationId].price) {
-                newOrders[typeId][stationId] = obj;
-            } else if (!cheaper && obj.price > newOrders[typeId][stationId].price) {
-                newOrders[typeId][stationId] = obj;
-            }
+            region_list.push(location);
         }
     }
-    return newOrders;
+    
+    if (station_list.length > 0) {
+        terms_clause = {'terms':{
+            'station_id': station_list
+        }};
+    }
+    
+    
+    if (region_list.length > 0) {
+        terms_clause = {'terms':{
+            'region_id': region_list
+        }};
+    }
+
+    const must_clause = {
+        'must': [
+            {
+                'term': {
+                    'is_buy_order': is_buy_order
+                }
+            },
+            {
+                'term': {
+                    'min_volume': 1
+                }
+            },
+            terms_clause
+        ]
+    };
+
+    const search_body = {
+        index: 'market_data',
+        scroll: '10s',
+        size: 10000,
+        _source: ['volume_remain', 'price', 'station_id', 'system_id', 'type_id'],
+        body: {
+            query: {
+                'bool': must_clause
+            }
+        }
+    };
+
+    console.log(JSON.stringify(search_body));
+
+    var all_hits = [];
+    // first we do a search, and specify a scroll timeout
+    const response = await client.search(search_body);
+
+    all_hits = all_hits.concat( response.body.hits.hits);
+    
+
+    let scroll_id = response.body._scroll_id;
+    console.log(`Retrieved ${all_hits.length} of ${response.body.hits.total.value} total hits.`);
+
+    while (response.body.hits.total.value !== all_hits.length) {
+        const scroll_response = await client.scroll({
+            scroll_id: scroll_id,
+            scroll: '10s'
+        });
+        all_hits = all_hits.concat(scroll_response.body.hits.hits);
+        console.log(`Retrieved ${all_hits.length} of ${scroll_response.body.hits.total.value} total hits.`);
+    }
+
+    var all_orders = [];
+    all_hits.forEach(function (hit) {
+        all_orders.push(hit['_source']);
+    });
+
+    return all_orders;
 }
 
 /**
  * Removes the type IDs that do not align between FROM and TO orders
- * @param {*} fromOrders Orders at the initiating end
- * @param {*} toOrders Orders at the closing end
+ * @param {*} fromArray Orders at the initiating end
+ * @param {*} toArray Orders at the closing end
  * @returns Subset of all the Ids (should be equal in size)
  */
-function remove_mismatch_type_ids(fromOrders, toOrders) {
+function remove_mismatch_type_ids(fromArray, toArray) {
+    const fromOrders = {};
+    const toOrders = {};
+
+    for (const order of fromArray) {
+        if (!fromOrders[order.type_id]) {
+            fromOrders[order.type_id] = [];
+        }
+        fromOrders[order.type_id].push(order);
+
+    }
+    for (const order of toArray) {
+        if (!toOrders[order.type_id]) {
+            toOrders[order.type_id] = [];
+        }
+        toOrders[order.type_id].push(order);
+    }
+
     const fromIds = Object.keys(fromOrders);
     const toIds = Object.keys(toOrders);
-
-    console.log(`Before: From Order Count = ${fromIds.length} and To Order Count = ${toIds.length}`);
     
     for (const id of fromIds) {
         if(toOrders[id] === undefined) {
@@ -128,7 +147,7 @@ function remove_mismatch_type_ids(fromOrders, toOrders) {
         }
     }
     
-    console.log(`After: From Order Count = ${Object.keys(fromOrders).length} and To Order Count = ${Object.keys(toOrders).length}`);
+    console.log(`After: From ID Count = ${Object.keys(fromOrders).length} and To ID Count = ${Object.keys(toOrders).length}`);
 
     return {
         'from': fromOrders,
@@ -147,21 +166,14 @@ function remove_mismatch_type_ids(fromOrders, toOrders) {
  * @param {*} maxWeight Maximum Weight
  * @returns Map of valid trades
  */
-function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudget, maxWeight) {
+function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudget, maxWeight, systemSecurity) {
     const ids = Object.keys(fromOrders);
     const validTrades = [];
 
     for (const id of ids) {
-        const fromStations = fromOrders[id];
-        const toStations = toOrders[id];
-
-        const fromKeys = Object.keys(fromStations);
-        for (const fromStation of fromKeys) {
-            const initialOrder = fromOrders[id][fromStation];
-            if (typeIDToName[initialOrder.type_id]) {
-                const toKeys = Object.keys(toStations);
-                for (const toStation of toKeys) {
-                    const closingOrder = toOrders[id][toStation];
+        if (typeIDToName[id]) {
+            for (const initialOrder of fromOrders[id]) {
+                for (const closingOrder of toOrders[id]) {
                     const volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
 
                     const initialPrice = initialOrder.price * volume;
@@ -169,30 +181,39 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                     const profit = salePrice - initialPrice;
                     const ROI = (salePrice-initialPrice)/initialPrice;
                     const weight = typeIDToName[initialOrder.type_id].volume * volume;
-                    if (profit > minProfit && ROI >= minROI && initialPrice <= maxBudget && weight < maxWeight) {
+                    const sourceSecurity = systemIdToSecurity[initialOrder.system_id]['security_code'];
+                    const destinationSecuity = systemIdToSecurity[closingOrder.system_id]['security_code'];
+
+                    if (
+                        profit > minProfit &&
+                        ROI >= minROI && 
+                        initialPrice <= maxBudget && 
+                        weight < maxWeight &&
+                        systemSecurity.indexOf(sourceSecurity) >= 0 &&
+                        systemSecurity.indexOf(destinationSecuity) >= 0) {
                         const newRecord = {
                             'Item': typeIDToName[initialOrder.type_id].name,
                             'From': {
-                                'name': stationIdToName[initialOrder.location_id],
+                                'name': stationIdToName[initialOrder.station_id],
                                 'system_id': initialOrder.system_id,
-                                'rating': systemIdToSecurity[initialOrder.system_id]["rating"],
-                                'security_code': systemIdToSecurity[initialOrder.system_id]["security_code"]
+                                'rating': systemIdToSecurity[initialOrder.system_id]['rating'],
+                                'security_code': systemIdToSecurity[initialOrder.system_id]['security_code']
                             },
                             'Quantity': volume,
                             'Buy Price': initialOrder.price,
                             'Net Costs': volume * initialOrder.price,
                             'Take To': {
-                                'name': stationIdToName[closingOrder.location_id],
+                                'name': stationIdToName[closingOrder.station_id],
                                 'system_id': closingOrder.system_id,
-                                'rating': systemIdToSecurity[closingOrder.system_id]["rating"],
-                                'security_code': systemIdToSecurity[closingOrder.system_id]["security_code"]
+                                'rating': systemIdToSecurity[closingOrder.system_id]['rating'],
+                                'security_code': systemIdToSecurity[closingOrder.system_id]['security_code']
                             },
                             'Sell Price': closingOrder.price,
                             'Net Sales': volume * closingOrder.price,
                             'Gross Margin': volume * (closingOrder.price - initialOrder.price),
                             'Sales Taxes': volume * (closingOrder.price * tax / 100),
                             'Net Profit': profit,
-                            'R.O.I.': (100 * ROI).toFixed(2) + "%",
+                            'R.O.I.': (100 * ROI).toFixed(2) + '%',
                             'Total Volume (m3)': weight,
                         };
 
@@ -211,6 +232,7 @@ let request_complete, request_count;
 
 async function get_number_of_jumps(safety, validTrades) {
     const routes = Object.keys(jumpCount);
+    console.log(`Number of routes = ${routes.length}`);
     request_count = 0;
     request_complete = 0;
 
@@ -303,29 +325,6 @@ function get_mappings() {
     });
 }
 
-function convert_locations(locations) {
-    const splitValues = {};
-    
-    const individualLocations = locations.split(',');
-    
-    for (const location of individualLocations) {
-        if (location.indexOf(':') > 0) {
-            const region = parseInt(location.split(':')[0], 10);
-            const station = parseInt(location.split(':')[1], 10);
-            
-            if(splitValues[region] === undefined) {
-                splitValues[region] = [];
-            }
-            
-            splitValues[region].push(station);
-        } else {
-            splitValues[location] = [];
-        }
-    }
-    
-    return splitValues;
-}
-
 /**
  * Lambda function handler
  * @param {*} event 
@@ -335,40 +334,42 @@ function convert_locations(locations) {
 exports.handler = async function(event, context) {
     console.log(event);
     const startTime = new Date();
-    const queries = event["queryStringParameters"];
-    const AGG_FROM = aggregate_mapping(convert_locations(queries['from']), 'sell');
-    const AGG_TO = aggregate_mapping(convert_locations(queries['to']), 'buy');
-    const SALES_TAX = queries['tax'] === undefined ? 0.08 : queries['tax'];
-    const MIN_PROFIT = queries['minProfit'] === undefined ? 500000 : queries['minProfit'];
-    const MIN_ROI = queries['minROI'] === undefined ? 0.04 : queries['minROI'];
-    const MAX_BUDGET = queries['maxBudget'] === undefined ? Number.MAX_SAFE_INTEGER : queries['maxBudget'];
-    const MAX_WEIGHT = queries['maxWeight'] === undefined ? Number.MAX_SAFE_INTEGER : queries['maxWeight'];
-    const ROUTE_SAFETY = queries['routeSafety'] === undefined ? 'shortest' : queries['routeSafety'];
-    const FROM_TYPE = queries['fromType'] === undefined ? 'sell' : queries['fromType'];
-    const TO_TYPE = queries['toType'] === undefined ? 'buy' : queries['toType'];
+    const queries = event['queryStringParameters'];
+    const SALES_TAX = queries['tax'] === undefined ? 0.08 : parseFloat(queries['tax']);
+    const MIN_PROFIT = queries['minProfit'] === undefined ? 500000 : parseFloat(queries['minProfit']);
+    const MIN_ROI = queries['minROI'] === undefined ? 0.04 : parseFloat(queries['minROI']);
+    const MAX_BUDGET = queries['maxBudget'] === undefined ? Number.MAX_SAFE_INTEGER : parseFloat(queries['maxBudget']);
+    const MAX_WEIGHT = queries['maxWeight'] === undefined ? Number.MAX_SAFE_INTEGER : parseFloat(queries['maxWeight']);
+    const ROUTE_SAFETY = queries['routeSafety'] === undefined ? 'secure' : queries['routeSafety']; // secure, shortest, insecure
+    const SYSTEM_SECURITY = queries['systemSecurity'] === undefined ? ['high_sec'] : queries['systemSecurity'];
     
     // Get cached mappings files for easier processing later.
     get_mappings();
 
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
-    let orders = await get_aggregate_orders(AGG_FROM, AGG_TO);
-    
+    let orders = {
+        'from': await get_orders(queries['from'], 'sell'),
+        'to': await get_orders(queries['to'], 'buy')
+    };
+
     // Grab one item per station in each each (cheaper for sell orders, expensive for buy orders)
     // Remove type Ids that do not exist in each side of the trade
-    orders = remove_mismatch_type_ids(
-        remap_orders(orders['from'], FROM_TYPE == 'buy' ? false : true), 
-        remap_orders(orders['to'], TO_TYPE == 'buy' ? false : true)
-    );
+    orders = remove_mismatch_type_ids(orders['from'], orders['to']);
+    console.log(`Retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
-    let validTrades = get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT);
+    let validTrades = get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY);
     console.log(`Valid Trades = ${validTrades.length}`);
+    console.log(`Trades took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
     validTrades = await get_number_of_jumps(ROUTE_SAFETY, validTrades);
 
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
     return {
-        'body': JSON.stringify(validTrades)
+        headers: {
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify(validTrades)
     };
 };

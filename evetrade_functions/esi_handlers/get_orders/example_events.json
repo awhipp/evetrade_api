@@ -18,9 +18,7 @@
           "tax": 0.08,
           "minProfit": 500000,
           "minROI": 0.05,
-          "routeSafety": "shortest",
-          "fromType": "sell",
-          "toType": "buy"
+          "routeSafety": "secure"
         }
       },
       "Station Hauling": {
@@ -30,9 +28,9 @@
           "tax": 0.08,
           "minProfit": 500000,
           "minROI": 0.05,
-          "routeSafety": "shortest",
-          "fromType": "sell",
-          "toType": "buy"
+          "routeSafety": "secure",
+          "systemSecurity": ["high_sec"]
         }
       }
 }
+
