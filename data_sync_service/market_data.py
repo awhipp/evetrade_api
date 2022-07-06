@@ -125,12 +125,6 @@ class MarketData:
                     valid_orders.append(order)
 
         end_time = round(time.time() - start_time, 4)
-
-        if len(self.orders) > 0:
-            percentage_of_orders = round((1 - (len(valid_orders) / len(self.orders))) * 100, 2)
-            print(
-                f'--- {end_time}s ({self.region} = {len(valid_orders)} orders of ' + \
-                f'{len(self.orders)} original orders ({percentage_of_orders}% less)) ---'
-            )
+        print(f'--- {end_time}s to pull data for {self.region} ---')
 
         return [json.dumps(record) for record in valid_orders]

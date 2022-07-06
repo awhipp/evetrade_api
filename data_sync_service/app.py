@@ -48,27 +48,15 @@ def get_region_ids():
 
     return region_ids
 
-def float_to_percent(float_value):
-    '''
-    Converts a float value to a percent value
-    '''
-    return str(round(float_value * 100, 2)) + '%'
-
 def get_data(index_name, region_ids):
     '''
     Gets market data for a given region and saves it to the local file system
     '''
-    idx = 0
 
     threads = []
     order_count = 0
 
     for region_id in region_ids:
-
-        percent_complete = float_to_percent(idx / len(region_ids))
-        idx+=1
-
-        print(f'Getting data for {region_id} ({percent_complete})')
 
         market_data = MarketData(region_id)
 
@@ -87,7 +75,6 @@ def get_data(index_name, region_ids):
     for order_thread in threads:
         order_thread.join()
 
-    print(f'Finished ingesting {order_count} orders')
     return order_count
 
 def create_index(index_name):
