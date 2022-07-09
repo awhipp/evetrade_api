@@ -10,7 +10,7 @@ on:
     - cron:  '*/5 * * * *' 
     
 env:
-  API_HOST: ${{ secrets.API_HOST }}
+  API_HOST: https://evetrade.space/api
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -27,7 +27,7 @@ jobs:
 
       - name: Checking Hauling Endpoint
         run: |
-          curl -X GET "$API_HOST/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&routeSafety=secure"
+          curl -X GET "$API_HOST/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.04&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec"
 
       - name: Checking Resource Endpoint
         run: |
