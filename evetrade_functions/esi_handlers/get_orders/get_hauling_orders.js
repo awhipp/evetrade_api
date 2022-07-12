@@ -156,6 +156,16 @@ function remove_mismatch_type_ids(fromArray, toArray) {
 }
 
 /**
+ * Round value to 2 decimal and add commas
+ */
+function round_value(value, amount) {
+    return value.toLocaleString("en-US", {
+        minimumFractionDigits: amount, 
+        maximumFractionDigits: amount
+    });
+}
+
+/**
  * Based on given parameters it returns a set of valid trades which meet initial parameters
  * @param {*} fromOrders Originating orders
  * @param {*} toOrders Closing orders
@@ -192,6 +202,7 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                         systemSecurity.indexOf(sourceSecurity) >= 0 &&
                         systemSecurity.indexOf(destinationSecuity) >= 0) {
                         const newRecord = {
+                            'Item ID': initialOrder.type_id,
                             'Item': typeIDToName[initialOrder.type_id].name,
                             'From': {
                                 'name': stationIdToName[initialOrder.station_id],
@@ -199,22 +210,23 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                                 'rating': systemIdToSecurity[initialOrder.system_id]['rating'],
                                 'security_code': systemIdToSecurity[initialOrder.system_id]['security_code']
                             },
-                            'Quantity': volume,
-                            'Buy Price': initialOrder.price,
-                            'Net Costs': volume * initialOrder.price,
+                            'Quantity': round_value(volume, 0),
+                            'Buy Price': round_value(initialOrder.price, 2),
+                            'Net Costs': round_value(volume * initialOrder.price, 2),
                             'Take To': {
                                 'name': stationIdToName[closingOrder.station_id],
                                 'system_id': closingOrder.system_id,
                                 'rating': systemIdToSecurity[closingOrder.system_id]['rating'],
                                 'security_code': systemIdToSecurity[closingOrder.system_id]['security_code']
                             },
-                            'Sell Price': closingOrder.price,
-                            'Net Sales': volume * closingOrder.price,
-                            'Gross Margin': volume * (closingOrder.price - initialOrder.price),
-                            'Sales Taxes': volume * (closingOrder.price * tax / 100),
+                            'Sell Price': round_value(closingOrder.price, 2),
+                            'Net Sales': round_value(volume * closingOrder.price, 2),
+                            'Gross Margin': round_value(volume * (closingOrder.price - initialOrder.price), 2),
+                            'Sales Taxes': round_value(volume * (closingOrder.price * tax / 100), 2),
                             'Net Profit': profit,
-                            'R.O.I.': (100 * ROI).toFixed(2) + '%',
-                            'Total Volume (m3)': weight,
+                            'Profit Per Item': round_value(profit / volume, 2),
+                            'ROI': round_value(100 * ROI, 2) + '%',
+                            'Total Volume (m3)': round_value(weight, 2),
                         };
 
                         validTrades.push(newRecord);
@@ -278,7 +290,8 @@ async function get_number_of_jumps(safety, validTrades) {
                     const fromSystem = trades['From']['system_id'];
                     const toSystem = trades['Take To']['system_id'];
                     trades['Jumps'] = jumpCount[`${fromSystem}-${toSystem}`];
-                    trades['Profit per Jump'] = (parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'], 10)).toFixed(2);
+                    trades['Profit per Jump'] = round_value(parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'], 10), 2);
+                    trades['Net Profit'] = round_value(trades['Net Profit'], 2);
                 }
                 
                 resolve(validTrades);
@@ -341,7 +354,7 @@ exports.handler = async function(event, context) {
     const MAX_BUDGET = queries['maxBudget'] === undefined ? Number.MAX_SAFE_INTEGER : parseFloat(queries['maxBudget']);
     const MAX_WEIGHT = queries['maxWeight'] === undefined ? Number.MAX_SAFE_INTEGER : parseFloat(queries['maxWeight']);
     const ROUTE_SAFETY = queries['routeSafety'] === undefined ? 'secure' : queries['routeSafety']; // secure, shortest, insecure
-    const SYSTEM_SECURITY = queries['systemSecurity'] === undefined ? ['high_sec'] : queries['systemSecurity'];
+    const SYSTEM_SECURITY = queries['systemSecurity'] === undefined ? ['high_sec'] : queries['systemSecurity'].split(',');
     
     // Get cached mappings files for easier processing later.
     get_mappings();
