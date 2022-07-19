@@ -14,11 +14,18 @@ async function get_orders(itemId, regionId, stationId, orderType) {
             
             res.on('end', () => {
                 try {
-                    resolve(
-                        JSON.parse(rawData).filter(function(item){
-                            return item.location_id == stationId;         
-                        })  
-                    );
+                    let orders = JSON.parse(rawData).filter(function(item){
+                        return item.location_id == stationId;         
+                    });
+                    
+                    let trimmed_orders = [];
+                    for (let i = 0; i < orders.length; i++) {
+                        trimmed_orders.push({
+                            'price': round_value(orders[i].price, 2),
+                            'quantity': round_value(orders[i].volume_remain, 0)
+                        });
+                    }
+                    resolve(trimmed_orders);
                 } catch (err) {
                     reject(new Error(err));
                 }
@@ -30,6 +37,14 @@ async function get_orders(itemId, regionId, stationId, orderType) {
         });
     });
 }
+
+function round_value(value, amount) {
+    return value.toLocaleString("en-US", {
+        minimumFractionDigits: amount, 
+        maximumFractionDigits: amount
+    });
+}
+
 
 /**
  * Lambda function handler
