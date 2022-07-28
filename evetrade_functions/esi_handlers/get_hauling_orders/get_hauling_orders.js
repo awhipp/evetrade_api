@@ -206,18 +206,18 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                             'Item': typeIDToName[initialOrder.type_id].name,
                             'From': {
                                 'name': stationIdToName[initialOrder.station_id],
+                                'station_id': initialOrder.station_id,
                                 'system_id': initialOrder.system_id,
-                                'rating': systemIdToSecurity[initialOrder.system_id]['rating'],
-                                'security_code': systemIdToSecurity[initialOrder.system_id]['security_code']
+                                'rating': systemIdToSecurity[initialOrder.system_id]['rating']
                             },
                             'Quantity': round_value(volume, 0),
                             'Buy Price': round_value(initialOrder.price, 2),
                             'Net Costs': round_value(volume * initialOrder.price, 2),
                             'Take To': {
                                 'name': stationIdToName[closingOrder.station_id],
+                                'station_id': closingOrder.station_id,
                                 'system_id': closingOrder.system_id,
-                                'rating': systemIdToSecurity[closingOrder.system_id]['rating'],
-                                'security_code': systemIdToSecurity[closingOrder.system_id]['security_code']
+                                'rating': systemIdToSecurity[closingOrder.system_id]['rating']
                             },
                             'Sell Price': round_value(closingOrder.price, 2),
                             'Net Sales': round_value(volume * closingOrder.price, 2),
