@@ -125,6 +125,5 @@ class MarketData:
                     valid_orders.append(order)
 
         end_time = round(time.time() - start_time, 4)
-        print(f'--- {end_time}s to pull data for {self.region} ---')
 
         return [json.dumps(record) for record in valid_orders]
