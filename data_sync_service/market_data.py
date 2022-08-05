@@ -67,8 +67,6 @@ class MarketData:
         '''
         Executes all requests for a given market data class
         '''
-        start_time = time.time()
-
         self.get_initial_market_data(self.construct_next_esi_endpoint(1))
 
         async with aiohttp.ClientSession() as session:
@@ -123,7 +121,5 @@ class MarketData:
                     order['region_id'] = self.region
                     del order['location_id']
                     valid_orders.append(order)
-
-        end_time = round(time.time() - start_time, 4)
 
         return [json.dumps(record) for record in valid_orders]

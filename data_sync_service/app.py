@@ -66,7 +66,7 @@ def get_data(index_name, region_ids):
             order_thread = threading.Thread(
                 target=load_orders_to_es,
                 name=f'Ingesting Orders for {region_id}',
-                args=(index_name, orders)
+                args=(index_name, orders, region_id)
             )
             order_thread.start()
             threads.append(order_thread)
@@ -80,7 +80,9 @@ def get_data(index_name, region_ids):
 def create_index(index_name):
     '''
     Creates the index for the data sync service
-    '''
+    '''    
+    print(f'Creating new index {index_name}')
+
     es_index_settings = {
 	    "settings" : {
             "index.max_result_window": 2000000
@@ -90,16 +92,18 @@ def create_index(index_name):
     es_client.indices.create(index = index_name, body = es_index_settings)
     return index_name
 
-def load_orders_to_es(index_name, all_orders):
+def load_orders_to_es(index_name, all_orders, region_id):
     '''
     Loads a list of orders to the Elasticsearch instance
     '''
+    print(f'Ingesting {len(all_orders)} orders from {region_id} into {index_name}')
     helpers.bulk(es_client, all_orders, index=index_name, request_timeout=30)
 
 def get_index_with_alias(alias):
     '''
     Returns the index name that the alias points to
     '''
+    print(f'Getting index with alias {alias}')
     if es_client.indices.exists_alias(name=alias):
         return (list(es_client.indices.get_alias(index=alias).keys())[0])
     return None
@@ -108,6 +112,7 @@ def update_alias(new_index, alias):
     '''
     Updates the alias to point to the new index
     '''
+    print(f'Removing adding {alias} to {new_index}')
     if new_index and alias:
         es_client.indices.update_aliases(body={
             "actions": [
@@ -130,6 +135,7 @@ def refresh_index(index_name):
     '''
     Refreshes an index
     '''
+    print(f'Refreshing index {index_name}')
     if index_name and es_client.indices.exists(index_name):
         es_client.indices.refresh(index=index_name)
 
@@ -137,8 +143,17 @@ def delete_index(index_name):
     '''
     Deletes an index from the Elasticsearch instance
     '''
+    print(f'Deleting index {index_name}')
     if index_name and es_client.indices.exists(index_name):
         es_client.indices.delete(index_name)
+
+def log(record):
+    '''
+    Logs a record to the Elasticsearch instance
+    '''
+    if not es_client.indices.exists(index = 'data_log'):
+        es_client.indices.create(index = 'data_log')
+    es_client.index(index = 'data_log', body = record)
 
 def delete_stale_indices(protected_indices):
     '''
@@ -147,6 +162,7 @@ def delete_stale_indices(protected_indices):
     indices = es_client.indices.get_alias(index='*')
     for index in indices:
         if index not in protected_indices:
+            print(f'Deleting stale index {index}')
             delete_index(index)
 
 def execute_sync():
@@ -161,6 +177,7 @@ def execute_sync():
 
     try:
         index_name = f'market-data-{now.strftime("%Y%m%d-%H%M%S")}'
+        print(f'--Executing sync on index {index_name}')
 
         previous_index = get_index_with_alias(ES_ALIAS)
         delete_stale_indices([
@@ -174,8 +191,9 @@ def execute_sync():
         refresh_index(ES_ALIAS)
         end = time.time()
         minutes = round((end - start) / 60, 2)
+        print(f'Completed in {minutes} minutes.')
 
-        print({
+        log({
             'index_name': index_name,
             'epoch_start': start,
             'epoch_end': end,
@@ -197,7 +215,7 @@ def execute_sync():
         )
 
         delete_index(index_name)
-        print({
+        log({
             'index_name': index_name,
             'epoch_start': start,
             'epoch_end': -1,
