@@ -113,7 +113,6 @@ exports.handler = async function(event, context) {
     
     for (var i = 0; i < data.length; i++) {
         const body = await get_request(data[i].download_url);
-
         await upload_to_s3('evetrade', `resources/${data[i].name}`, JSON.stringify(body), 'application/json');
     }
 };
