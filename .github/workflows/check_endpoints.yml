@@ -36,3 +36,7 @@ jobs:
       - name: Checking Orders Endpoint
         run: |
           curl -X GET "$API_HOST/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494"
+
+      - name: Checking Station Trading Endpoint
+        run: |
+          curl -X GET "$API_HOST/station?station=60003760&tax=0.08&fee=0.03&margins=0.20,0.40&min_volume=10000&volume_filter=1"
