@@ -8,12 +8,12 @@ The serverless backend API which assists in computation for EVETrade.space
 
 **Currently in BETA and not implemented on the live site**
 
-## Current vs. Future State
+## Architecture Diagrams
 
-### Current State (V 1.x to 6.x)
+### Current State
+
+![Proposed Future State](https://i.imgur.com/fMVKwX5.png)
+
+### Previous State (2016 to 2021)
 
 ![Current State](https://i.imgur.com/6PX9pO3.png)
-
-### Proposed Future State (V 7.x +)
-
-![Proposed Future State](https://i.imgur.com/gH8gMaI.png)

@@ -1,5 +1,5 @@
 // Find profitable stations trades at a given station
-
+const https = require('https');
 const AWS = require('aws-sdk');
 const { Client } = require('@elastic/elasticsearch');
 
@@ -137,14 +137,13 @@ function round_value(value, amount) {
     };
 }
 
-
 /**
  * For a given list of orders, find profitable trades within a station
  * @param {*} buy_orders List of currrent buy orders in the station
  * @param {*} sell_orders List of currrent sell orders in the station
  * @returns profitable trades
  */
-function find_station_trades(orders, salesTax, brokerFee, marginLimit, volumeLimit) {
+async function find_station_trades(orders, salesTax, brokerFee, marginLimit, volumeLimit, profitLimit) {
     const station_trades = [];
 
     for (const itemId in orders.buy) {
@@ -162,13 +161,14 @@ function find_station_trades(orders, salesTax, brokerFee, marginLimit, volumeLim
         const itemMargin = itemProfit / buyPrice;
         const ROI = (salePrice-buyPrice)/buyPrice;
 
-        if(itemMargin >= marginLimit[0] && itemMargin <= marginLimit[1] && itemProfit > 0){
+        if(itemMargin >= marginLimit[0] && itemMargin <= marginLimit[1] && itemProfit > profitLimit){
             const row = {
                 'Buy Price': round_value(buyPrice, 2),
                 'Sell Price': round_value(salePrice, 2),
                 'Item ID': itemId,
+                'Region ID': buyOrder.region_id,
                 'Name': typeIDToName[itemId].name,
-                '24-Hour Volume': 0,
+                '1-Day Volume': 0,
                 '14-Day Volume': 0,
                 '30-Day Volume': 0,
                 'Sell Tax': round_value(itemSellTax, 2),
@@ -229,6 +229,7 @@ exports.handler = async function(event, context) {
         parseFloat(queries['margins'].split(',')[1])
     ];
     const VOLUME = queries['volume'] === undefined ? 1000 : parseInt(queries['volume'], 10);
+    const PROFIT_LIMIT = queries['profit'] === undefined ? 1000 : parseInt(queries['profit'], 10);
     
     // Get cached mappings files for easier processing later.
     get_mappings();
@@ -239,7 +240,13 @@ exports.handler = async function(event, context) {
     const sell_orders = await get_orders(STATION, false);
     let orders = remove_mismatch_type_ids(buy_orders, sell_orders);
 
-    orders = find_station_trades(orders, SALES_TAX, BROKER_FEE, MARGINS, VOLUME);
+    orders = await find_station_trades(orders, SALES_TAX, BROKER_FEE, MARGINS, VOLUME, PROFIT_LIMIT);
+
+    // orders = await get_volume_data(orders);
+
+    // orders = orders.filter(function(item){
+    //     return item['14-Day Volume'] > VOLUME;         
+    // });
 
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
 
