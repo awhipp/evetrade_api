@@ -24,19 +24,23 @@ jobs:
         
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+      
+      - name: Install Dependencies
+        run: |
+          apt install jq -y
 
       - name: Checking Hauling Endpoint
         run: |
-          curl -X GET "$API_HOST/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.04&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec"
+          curl -X GET "$API_HOST/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
 
       - name: Checking Resource Endpoint
         run: |
-          curl -X GET "$API_HOST/resource?file=invTypes.json"
+          curl -X GET "$API_HOST/resource?file=invTypes.json" | jq
 
       - name: Checking Orders Endpoint
         run: |
-          curl -X GET "$API_HOST/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494"
+          curl -X GET "$API_HOST/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494" | jq
 
       - name: Checking Station Trading Endpoint
         run: |
-          curl -X GET "$API_HOST/station?station=60003760&tax=0.08&fee=0.03&margins=0.20,0.40&min_volume=10000&volume_filter=1"
+          curl -X GET "$API_HOST/station?station=60003760&tax=0.08&fee=0.03&margins=0.20,0.30&min_volume=100000&volume_filter=1" | jq
