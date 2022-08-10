@@ -185,12 +185,13 @@ async function find_station_trades(orders, salesTax, brokerFee, marginLimit, pro
                 'Sell Price': round_value(salePrice, 2),
                 'Net Profit': round_value(itemProfit, 2),
                 'ROI': round_value(100 * ROI, 2) + '%',
-                'Volume': parseInt(volume, 10),
+                'Volume': volume,
                 'Margin': round_value(itemMargin * 100, 2) + '%',
-                'Sell Tax': round_value(itemSellTax, 2),
+                'Sales Tax': round_value(itemSellTax, 2),
                 'Gross Margin':round_value(grossMargin, 2),
-                'Buy Fees': round_value(itemBuyFee, 2),
-                'Sell Fees': round_value(itemSellFee, 2)
+                'Buying Fees': round_value(itemBuyFee, 2),
+                'Selling Fees': round_value(itemSellFee, 2),
+                'Region ID': buyOrder.region_id
             };
             
             station_trades.push(row);
