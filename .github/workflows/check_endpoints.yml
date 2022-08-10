@@ -10,12 +10,13 @@ on:
     - cron:  '*/5 * * * *' 
     
 env:
-  API_HOST: https://evetrade.space/api
+  PROD_API: https://evetrade.space/api
+  DEV_API: https://evetrade.space/dev
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  check_data:
+  prod_api_check:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -31,16 +32,47 @@ jobs:
 
       - name: Checking Hauling Endpoint
         run: |
-          curl -X GET "$API_HOST/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
+          curl -X GET "$PROD_API/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
 
       - name: Checking Resource Endpoint
         run: |
-          curl -X GET "$API_HOST/resource?file=invTypes.json" | jq
+          curl -X GET "$PROD_API/resource?file=invTypes.json" | jq
 
       - name: Checking Orders Endpoint
         run: |
-          curl -X GET "$API_HOST/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494" | jq
+          curl -X GET "$PROD_API/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494" | jq
 
       - name: Checking Station Trading Endpoint
         run: |
-          curl -X GET "$API_HOST/station?station=60003760&profit=1000&tax=0.08&fee=0.03&margins=0.20,0.30&min_volume=100000&volume_filter=1" | jq
+          curl -X GET "$PROD_API/station?station=60003760&profit=1000&tax=0.08&fee=0.03&margins=0.20,0.30&min_volume=100000&volume_filter=1" | jq
+
+  # This workflow contains a single job called "build"
+  dev_api_check:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+        
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      
+      - name: Install Dependencies
+        run: |
+          sudo apt install jq -y
+
+      - name: Checking Hauling Endpoint
+        run: |
+          curl -X GET "$DEV_API/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
+
+      - name: Checking Resource Endpoint
+        run: |
+          curl -X GET "$DEV_API/resource?file=invTypes.json" | jq
+
+      - name: Checking Orders Endpoint
+        run: |
+          curl -X GET "$DEV_API/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494" | jq
+
+      - name: Checking Station Trading Endpoint
+        run: |
+          curl -X GET "$DEV_API/station?station=60003760&profit=1000&tax=0.08&fee=0.03&margins=0.20,0.30&min_volume=100000&volume_filter=1" | jq
