@@ -170,31 +170,35 @@ async function find_station_trades(orders, salesTax, brokerFee, marginLimit, pro
         const ROI = (salePrice-buyPrice)/buyPrice;
         
         if(itemMargin >= marginLimit[0] && itemMargin <= marginLimit[1] && itemProfit > profitLimit){
-            const itemVolume = await redisClient.get(`${buyOrder.region_id}-${itemId}`);
-            let volumeValues = [0,0,0];
-            if (itemVolume !== null) {
-                volumeValues = itemVolume.split(',');
+            
+            if (typeIDToName[itemId]) {
+                const itemVolume = await redisClient.get(`${buyOrder.region_id}-${itemId}`);
+                let volumeValues = [0,0,0];
+                if (itemVolume !== null) {
+                    volumeValues = itemVolume.split(',');
+                }
+                
+                const volume = volumeValues[volumeIdx];
+            
+                const row = {
+                    'Item ID': itemId,
+                    'Item': typeIDToName[itemId].name,
+                    'Buy Price': round_value(buyPrice, 2),
+                    'Sell Price': round_value(salePrice, 2),
+                    'Net Profit': round_value(itemProfit, 2),
+                    'ROI': round_value(100 * ROI, 2) + '%',
+                    'Volume': volume,
+                    'Margin': round_value(itemMargin * 100, 2) + '%',
+                    'Sales Tax': round_value(itemSellTax, 2),
+                    'Gross Margin':round_value(grossMargin, 2),
+                    'Buying Fees': round_value(itemBuyFee, 2),
+                    'Selling Fees': round_value(itemSellFee, 2),
+                    'Region ID': buyOrder.region_id
+                };
+                
+                station_trades.push(row);
+                
             }
-            
-            const volume = volumeValues[volumeIdx];
-            
-            const row = {
-                'Item ID': itemId,
-                'Item': typeIDToName[itemId].name,
-                'Buy Price': round_value(buyPrice, 2),
-                'Sell Price': round_value(salePrice, 2),
-                'Net Profit': round_value(itemProfit, 2),
-                'ROI': round_value(100 * ROI, 2) + '%',
-                'Volume': volume,
-                'Margin': round_value(itemMargin * 100, 2) + '%',
-                'Sales Tax': round_value(itemSellTax, 2),
-                'Gross Margin':round_value(grossMargin, 2),
-                'Buying Fees': round_value(itemBuyFee, 2),
-                'Selling Fees': round_value(itemSellFee, 2),
-                'Region ID': buyOrder.region_id
-            };
-            
-            station_trades.push(row);
         }
     }
     
