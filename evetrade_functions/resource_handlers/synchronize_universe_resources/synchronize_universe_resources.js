@@ -13,7 +13,7 @@ function get_request(url) {
             'User-Agent': 'evetrade-api-lambda'
         }
     };
-
+    
     return new Promise((resolve, reject) => {
         const req = https.get(url, options, res => {
             let rawData = '';
@@ -65,7 +65,7 @@ async function upload_to_s3(bucket, key, body, contentType) {
     .promise()
     .then( data => { console.log(`Success`, data); })
     .catch( err => { console.log(`Failed`, err); });
-
+    
     if (key.indexOf('invTypes') > 0) {
         const json = JSON.parse(body.toString('utf-8'));
         const typeIDToName = {};
@@ -79,10 +79,10 @@ async function upload_to_s3(bucket, key, body, contentType) {
                 "volume": volume
             };
         }
-
+        
         await upload_to_s3('evetrade', 'resources/typeIDToName.json', JSON.stringify(typeIDToName), 'application/json');
     }
-
+    
     if (key.indexOf('universeList') > 0) {
         const json = JSON.parse(body.toString('utf-8'));
         const systemIdToSecurity = {};
@@ -92,7 +92,7 @@ async function upload_to_s3(bucket, key, body, contentType) {
                 const systemId = metadata["system"];
                 const security = metadata["security"];
                 const securityCode = get_security_code(security);
-    
+                
                 systemIdToSecurity[systemId] = {
                     "rating": security,
                     "security_code": securityCode
@@ -103,10 +103,79 @@ async function upload_to_s3(bucket, key, body, contentType) {
     }
 }
 
+function p95(arr){
+    // Creating the mean with Array.reduce
+    let mean = arr.reduce((acc, curr)=>{
+        return acc + curr;
+    }, 0) / arr.length;
+    
+    // Assigning (value - mean) ^ 2 to every array item
+    arr = arr.map((k)=>{
+        return (k - mean) ** 2;
+    });
+    
+    // Calculating the sum of updated array
+    let sum = arr.reduce((acc, curr)=> acc + curr, 0);
+    
+    // Return 95th percentile
+    return mean + (2 * Math.sqrt(sum / arr.length));
+}
+
+async function get_average_lambda_execution_time(lambdaFunctionName) {
+    const AWS = require('aws-sdk');
+    AWS.config.update({region: 'us-east-1'});
+    const startTime = new Date(new Date().setDate(new Date().getDate() - 14));
+    const endTime = new Date();
+    console.log(`Getting average lambda execution time for ${lambdaFunctionName} from ${startTime} to ${endTime}`);
+    
+    const cloudwatch = new AWS.CloudWatch();
+    const params = {
+        MetricName: 'Duration',
+        Namespace: 'AWS/Lambda',
+        Statistics: ['Average'],
+        Period: 1440,
+        StartTime: startTime,
+        EndTime: endTime,
+        Dimensions: [
+            {
+                Name: 'FunctionName',
+                Value: lambdaFunctionName
+            }
+        ]
+    };
+    const metric = await cloudwatch.getMetricStatistics(params).promise();
+    const datapoints = metric.Datapoints;
+    const durations = [];
+    for (const datapoint of datapoints) {
+        durations.push(datapoint.Average);
+    }
+    return p95(durations);
+}
+
 // Lambda function which pulls data from GitHub resource and uploads to S3
 exports.handler = async function(event, context) {    
-    const RES_ENDPOINT = 'https://api.github.com/repos/awhipp/evetrade_resources/contents/resources';
 
+    // Gets the 95th percentile of lambda execution time for the last 14 days
+    const apiFunctions = [
+        'evetrade-get-orders',
+        'evetrade-get-resource',
+        'evetrade-get-hauling-orders',
+        'evetrade-get-station-trades',
+        'evetrade-synchronize-universe-resources'
+    ];
+
+    const functionDurations = {};
+    
+    for (const functionName of apiFunctions) {
+        const duration = await get_average_lambda_execution_time(functionName);
+        functionDurations[functionName] = parseFloat(duration.toFixed(2));
+    }
+
+    await upload_to_s3('evetrade', 'resources/functionDurations.json', JSON.stringify(functionDurations), 'application/json');
+
+    // Get data from GitHub resources
+    const RES_ENDPOINT = 'https://api.github.com/repos/awhipp/evetrade_resources/contents/resources';
+    
     console.log(`Sending Request to ${RES_ENDPOINT}`);
     
     const data = await get_request(RES_ENDPOINT);
