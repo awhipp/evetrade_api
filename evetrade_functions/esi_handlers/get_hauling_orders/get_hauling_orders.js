@@ -290,7 +290,13 @@ async function get_number_of_jumps(safety, validTrades) {
                     const fromSystem = trades['From']['system_id'];
                     const toSystem = trades['Take To']['system_id'];
                     trades['Jumps'] = jumpCount[`${fromSystem}-${toSystem}`];
-                    trades['Profit per Jump'] = round_value(parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'], 10), 2);
+
+                    if (trades['Jumps'] == 0) {
+                        trades['Profit per Jump'] = round_value(parseFloat(trades['Net Profit']), 2);
+                    } else {
+                        trades['Profit per Jump'] = round_value(parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'], 10), 2);
+                    }
+                    
                     trades['Net Profit'] = round_value(trades['Net Profit'], 2);
                 }
                 
