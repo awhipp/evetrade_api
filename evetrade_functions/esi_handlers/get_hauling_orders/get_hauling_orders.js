@@ -1,7 +1,7 @@
 // Compares profitable hailing orders between stations and/or regions (or within the same region)
 const AWS = require('aws-sdk');
-const https = require('https');
-const { Client } = require('@elastic/elasticsearch')
+const { Client } = require('@elastic/elasticsearch');
+const redis = require('redis');
 
 AWS.config.update({region: 'us-east-1'});
 const s3 = new AWS.S3();
@@ -9,6 +9,15 @@ const s3 = new AWS.S3();
 let typeIDToName, stationIdToName, systemIdToSecurity;
 
 const jumpCount = {};
+
+const redisClient = redis.createClient({
+    socket: {
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT,
+    },
+    password: process.env.REDIS_PASSWORD
+});
+
 
 /**
 * Generates and executes market data requests based on the requested queries
@@ -174,9 +183,11 @@ function round_value(value, amount) {
 * @param {*} minROI Minimum ROI 
 * @param {*} maxBudget Maximum Budget
 * @param {*} maxWeight Maximum Weight
+* @param {*} systemSecurity Security of the system
+* @param {*} routeSafety Route Preference
 * @returns Map of valid trades
 */
-function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudget, maxWeight, systemSecurity) {
+async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudget, maxWeight, systemSecurity, routeSafety) {
     const ids = Object.keys(fromOrders);
     const validTrades = [];
     
@@ -209,6 +220,13 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                     systemSecurity.indexOf(destinationSecuity) >= 0;
                     
                     if (validTrade) {
+                        const starting_system = initialOrder.system_id;
+                        const ending_system = closingOrder.system_id;
+                        const key1 = `${starting_system}-${ending_system}-${routeSafety}`;
+                        const key2 = `${ending_system}-${starting_system}-${routeSafety}`;
+                        const jumps = await redisClient.get(key1) ||  await redisClient.get(key2);
+                        const profit_per_jump = jumps == 0 ? round_value(profit, 2) : round_value(profit / jumps, 2);
+                    
                         const newRecord = {
                             'Item ID': initialOrder.type_id,
                             'Item': typeIDToName[initialOrder.type_id].name,
@@ -231,7 +249,9 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
                             'Net Sales': round_value(volume * closingOrder.price, 2),
                             'Gross Margin': round_value(volume * (closingOrder.price - initialOrder.price), 2),
                             'Sales Taxes': round_value(volume * (closingOrder.price * tax / 100), 2),
-                            'Net Profit': profit,
+                            'Net Profit': round_value(profit, 2),
+                            'Jumps': jumps,
+                            'Profit per Jump': profit_per_jump,
                             'Profit Per Item': round_value(profit / volume, 2),
                             'ROI': round_value(100 * ROI, 2) + '%',
                             'Total Volume (m3)': round_value(weight, 2),
@@ -247,73 +267,6 @@ function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudge
     }
     return validTrades;
 }
-
-let request_complete, request_count;
-
-async function get_number_of_jumps(safety, validTrades) {
-    const routes = Object.keys(jumpCount);
-    console.log(`Number of routes = ${routes.length}`);
-    request_count = 0;
-    request_complete = 0;
-    
-    for (const route of routes) {
-        const fromSystem = route.split('-')[0];
-        const toSystem = route.split('-')[1];
-        const url = `https://esi.evetech.net/latest/route/${fromSystem}/${toSystem}/?datasource=tranquility&flag=${safety}`;
-        request_count += 1;
-        
-        new Promise((resolve, reject) => {
-            const req = https.get(url, {}, res => {
-                let rawData = '';
-                
-                res.on('data', chunk => {
-                    rawData += chunk;
-                });
-                
-                res.on('end', () => {
-                    try {
-                        request_complete += 1;
-                        resolve(JSON.parse(rawData));
-                    } catch (err) {
-                        reject(new Error(err));
-                    }
-                });
-            });
-            
-            req.on('error', err => {
-                reject(new Error(err));
-            });
-        }).then(function(data){
-            jumpCount[`${data[0]}-${data[data.length-1]}`] = data.length - 1;
-            
-        });
-    }
-    
-    return new Promise(function (resolve) {
-        const interval = setInterval(async function() {
-            if (request_count == request_complete) {
-                clearInterval(interval);
-                
-                for (const trades of validTrades) {
-                    const fromSystem = trades['From']['system_id'];
-                    const toSystem = trades['Take To']['system_id'];
-                    trades['Jumps'] = jumpCount[`${fromSystem}-${toSystem}`];
-                    
-                    if (trades['Jumps'] == 0) {
-                        trades['Profit per Jump'] = round_value(parseFloat(trades['Net Profit']), 2);
-                    } else {
-                        trades['Profit per Jump'] = round_value(parseFloat(trades['Net Profit']) / parseInt(trades['Jumps'], 10), 2);
-                    }
-                    
-                    trades['Net Profit'] = round_value(trades['Net Profit'], 2);
-                }
-                
-                resolve(validTrades);
-            }
-        });
-    });
-}
-
 
 function get_mappings() {
     const DOWNLOAD_PARAMS = {
@@ -372,6 +325,10 @@ exports.handler = async function(event, context) {
     
     // Get cached mappings files for easier processing later.
     get_mappings();
+
+    await redisClient.connect().catch(error => {
+        console.log('Redis Client already connected.');
+    });
     
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
@@ -385,11 +342,8 @@ exports.handler = async function(event, context) {
     orders = remove_mismatch_type_ids(orders['from'], orders['to']);
     console.log(`Retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
-    let validTrades = get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY);
-    console.log(`Valid Trades = ${validTrades.length}`);
-    console.log(`Trades took: ${(new Date() - startTime) / 1000} seconds to process.`);
-    
-    validTrades = await get_number_of_jumps(ROUTE_SAFETY, validTrades);
+    let validTrades = await get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY, ROUTE_SAFETY);
+    console.log(`Valid Trades = ${validTrades.length}`);    
     
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
