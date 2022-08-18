@@ -80,11 +80,12 @@ def get_data(index_name, region_ids):
 def create_index(index_name):
     '''
     Creates the index for the data sync service
-    '''
+    '''    
     print(f'Creating new index {index_name}')
 
     es_index_settings = {
 	    "settings" : {
+            "index.max_result_window": 2000000
 	    }
     }
 
@@ -146,6 +147,14 @@ def delete_index(index_name):
     if index_name and es_client.indices.exists(index_name):
         es_client.indices.delete(index_name)
 
+def log(record):
+    '''
+    Logs a record to the Elasticsearch instance
+    '''
+    if not es_client.indices.exists(index = 'data_log'):
+        es_client.indices.create(index = 'data_log')
+    es_client.index(index = 'data_log', body = record)
+
 def delete_stale_indices(protected_indices):
     '''
     Loop through all indices and delete any that are not currently in use
@@ -163,22 +172,38 @@ def execute_sync():
     start = time.time()
     now = datetime.now()
 
+    start_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
     try:
         index_name = f'market-data-{now.strftime("%Y%m%d-%H%M%S")}'
         print(f'--Executing sync on index {index_name}')
 
         previous_index = get_index_with_alias(ES_ALIAS)
         delete_stale_indices([
-            previous_index, index_name
+            previous_index, index_name, 'data_log'
         ])
         region_ids = get_region_ids()
         get_data(index_name, region_ids)
         create_index(index_name)
+        region_ids = get_region_ids()
+        order_count = get_data(index_name, region_ids)
         update_alias(index_name, ES_ALIAS)
         refresh_index(ES_ALIAS)
         end = time.time()
         minutes = round((end - start) / 60, 2)
         print(f'Completed in {minutes} minutes.')
+
+        log({
+            'index_name': index_name,
+            'epoch_start': start,
+            'epoch_end': end,
+            'start_datetime': start_datetime,
+            'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'time_to_complete': f'{minutes} minutes',
+            'number_of_records': order_count,
+            'message': 'Success'
+        })
 
         if minutes > 4:
             print(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
@@ -191,6 +216,16 @@ def execute_sync():
         )
 
         delete_index(index_name)
+        log({
+            'index_name': index_name,
+            'epoch_start': start,
+            'epoch_end': -1,
+            'start_datetime': start_datetime,
+            'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'time_to_complete': 'N/A',
+            'number_of_records': 0,
+            'message': f'Failed to ingest data: {str(general_exception)}'
+        })
         raise general_exception
 
 
