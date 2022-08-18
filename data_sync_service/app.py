@@ -164,22 +164,19 @@ def execute_sync():
     start = time.time()
     now = datetime.now()
 
-    start_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
 
     try:
         index_name = f'market-data-{now.strftime("%Y%m%d-%H%M%S")}'
         print(f'--Executing sync on index {index_name}')
 
-        # previous_index = get_index_with_alias(ES_ALIAS)
-        # delete_stale_indices([
-        #     previous_index, index_name
-        # ])
+        previous_index = get_index_with_alias(ES_ALIAS)
+        delete_stale_indices([
+            previous_index, index_name
+        ])
         region_ids = get_region_ids()
         create_index(index_name)
         get_data(index_name, region_ids)
         region_ids = get_region_ids()
-        order_count = get_data(index_name, region_ids)
         update_alias(index_name, ES_ALIAS)
         refresh_index(ES_ALIAS)
         end = time.time()
