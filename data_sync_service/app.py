@@ -176,8 +176,8 @@ def execute_sync():
         #     previous_index, index_name
         # ])
         region_ids = get_region_ids()
-        get_data(index_name, region_ids)
         create_index(index_name)
+        get_data(index_name, region_ids)
         region_ids = get_region_ids()
         order_count = get_data(index_name, region_ids)
         update_alias(index_name, ES_ALIAS)
