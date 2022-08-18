@@ -147,14 +147,6 @@ def delete_index(index_name):
     if index_name and es_client.indices.exists(index_name):
         es_client.indices.delete(index_name)
 
-def log(record):
-    '''
-    Logs a record to the Elasticsearch instance
-    '''
-    if not es_client.indices.exists(index = 'data_log'):
-        es_client.indices.create(index = 'data_log')
-    es_client.index(index = 'data_log', body = record)
-
 def delete_stale_indices(protected_indices):
     '''
     Loop through all indices and delete any that are not currently in use
@@ -181,7 +173,7 @@ def execute_sync():
 
         previous_index = get_index_with_alias(ES_ALIAS)
         delete_stale_indices([
-            previous_index, index_name, 'data_log'
+            previous_index, index_name
         ])
         region_ids = get_region_ids()
         get_data(index_name, region_ids)
@@ -194,17 +186,6 @@ def execute_sync():
         minutes = round((end - start) / 60, 2)
         print(f'Completed in {minutes} minutes.')
 
-        log({
-            'index_name': index_name,
-            'epoch_start': start,
-            'epoch_end': end,
-            'start_datetime': start_datetime,
-            'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'time_to_complete': f'{minutes} minutes',
-            'number_of_records': order_count,
-            'message': 'Success'
-        })
-
         if minutes > 4:
             print(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
             time.sleep(60)
@@ -216,16 +197,6 @@ def execute_sync():
         )
 
         delete_index(index_name)
-        log({
-            'index_name': index_name,
-            'epoch_start': start,
-            'epoch_end': -1,
-            'start_datetime': start_datetime,
-            'end_datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'time_to_complete': 'N/A',
-            'number_of_records': 0,
-            'message': f'Failed to ingest data: {str(general_exception)}'
-        })
         raise general_exception
 
 
