@@ -171,7 +171,7 @@ def execute_sync():
 
         previous_index = get_index_with_alias(ES_ALIAS)
         delete_stale_indices([
-            previous_index, index_name
+            previous_index, index_name, 'evetrade_jump_data'
         ])
         region_ids = get_region_ids()
         create_index(index_name)
