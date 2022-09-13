@@ -383,8 +383,15 @@ exports.handler = async function(event, context) {
     for (let i = 0; i < validTrades.length; i++) {
         const systemFrom = validTrades[i]['From']['system_id'];
         const systemTo = validTrades[i]['Take To']['system_id'];
+
         validTrades[i]['Jumps'] = round_value(routeData[`${systemFrom}-${systemTo}`], 0);
-        validTrades[i]['Profit per Jump'] = round_value(validTrades[i]['Net Profit'] / validTrades[i]['Jumps'], 2);
+
+        if (routeData[`${systemFrom}-${systemTo}`] > 0) {
+            validTrades[i]['Profit per Jump'] = round_value(validTrades[i]['Net Profit'] / validTrades[i]['Jumps'], 2);
+        } else {
+            validTrades[i]['Profit per Jump'] = round_value(validTrades[i]['Net Profit'], 2);
+        }
+
         validTrades[i]['Net Profit'] = round_value(validTrades[i]['Net Profit'], 2);
     }
     
