@@ -113,7 +113,6 @@ async function get_orders(locations, orderType) {
 */
 async function get_routes(routeSafety) {
     
-    
     const should_clause = [];
 
     for (const route in jumpCount) {
@@ -123,31 +122,38 @@ async function get_routes(routeSafety) {
             }
         });
     }
+    
+    const chunkSize = 128;
+    for (let i = 0; i < should_clause.length; i += chunkSize) {
+        const should_chunk = should_clause.slice(i, i + chunkSize);
 
-    const search_body = {
-        index: 'evetrade_jump_data',
-        size: 10000,
-        _source: [routeSafety, 'route'],
-        body: {
-            query: {
-                'bool': {
-                    'should': should_clause
+        const search_body = {
+            index: 'evetrade_jump_data',
+            size: 10000,
+            _source: [routeSafety, 'route'],
+            body: {
+                query: {
+                    'bool': {
+                        'should': should_chunk
+                    }
                 }
             }
-        }
-    };
-    
-    // first we do a search, and specify a scroll timeout
-    const response = await client.search(search_body);
-    
-    const all_hits = response.body.hits.hits;
-    
-    all_hits.forEach(function (hit) {
-        const doc = hit['_source'];
-        const route = doc['route'];
-        const jumps = doc[routeSafety];
-        jumpCount[route] = jumps;
-    });
+        };
+        
+        // first we do a search, and specify a scroll timeout
+        const response = await client.search(search_body);
+        
+        const all_hits = response.body.hits.hits;
+
+        console.log(`Retrieved ${all_hits.length} routes of for route chunk.`);
+        
+        all_hits.forEach(function (hit) {
+            const doc = hit['_source'];
+            const route = doc['route'];
+            const jumps = doc[routeSafety];
+            jumpCount[route] = jumps;
+        });
+    }
 
     return jumpCount;
 }
