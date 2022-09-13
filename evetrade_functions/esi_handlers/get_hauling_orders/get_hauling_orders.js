@@ -1,7 +1,6 @@
 // Compares profitable hailing orders between stations and/or regions (or within the same region)
 const AWS = require('aws-sdk');
 const { Client } = require('@elastic/elasticsearch');
-const redis = require('redis');
 
 AWS.config.update({region: 'us-east-1'});
 const s3 = new AWS.S3();
@@ -9,15 +8,10 @@ const s3 = new AWS.S3();
 let typeIDToName, stationIdToName, systemIdToSecurity;
 
 const jumpCount = {};
-
-const redisClient = redis.createClient({
-    socket: {
-        host: process.env.REDIS_HOST,
-        port: process.env.REDIS_PORT,
-    },
-    password: process.env.REDIS_PASSWORD
+    
+const client = new Client({
+    node: process.env.ES_HOST
 });
-
 
 /**
 * Generates and executes market data requests based on the requested queries
@@ -27,10 +21,6 @@ const redisClient = redis.createClient({
 */
 async function get_orders(locations, orderType) {
     locations = locations.split(',');
-    
-    const client = new Client({
-        node: process.env.ES_HOST
-    });
     
     const is_buy_order = orderType === 'buy';
     
@@ -94,8 +84,7 @@ async function get_orders(locations, orderType) {
     // first we do a search, and specify a scroll timeout
     const response = await client.search(search_body);
     
-    all_hits = all_hits.concat( response.body.hits.hits);
-    
+    all_hits = all_hits.concat(response.body.hits.hits);
     
     let scroll_id = response.body._scroll_id;
     console.log(`Retrieved ${all_hits.length} of ${response.body.hits.total.value} total hits.`);
@@ -116,6 +105,53 @@ async function get_orders(locations, orderType) {
     
     return all_orders;
 }
+
+/**
+* Generates and executes route data requests
+* @param {*} routeSafety 
+* @returns Route Data
+*/
+async function get_routes(routeSafety) {
+    
+    
+    const should_clause = [];
+
+    for (const route in jumpCount) {
+        should_clause.push({
+            'match_phrase': {
+                'route': route
+            }
+        });
+    }
+
+    const search_body = {
+        index: 'evetrade_jump_data',
+        size: 10000,
+        _source: [routeSafety, 'route'],
+        body: {
+            query: {
+                'bool': {
+                    'should': should_clause
+                }
+            }
+        }
+    };
+    
+    // first we do a search, and specify a scroll timeout
+    const response = await client.search(search_body);
+    
+    const all_hits = response.body.hits.hits;
+    
+    all_hits.forEach(function (hit) {
+        const doc = hit['_source'];
+        const route = doc['route'];
+        const jumps = doc[routeSafety];
+        jumpCount[route] = jumps;
+    });
+
+    return jumpCount;
+}
+
 
 /**
 * Removes the type IDs that do not align between FROM and TO orders
@@ -187,7 +223,7 @@ function round_value(value, amount) {
 * @param {*} routeSafety Route Preference
 * @returns Map of valid trades
 */
-async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudget, maxWeight, systemSecurity, routeSafety) {
+async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, maxBudget, maxWeight, systemSecurity) {
     const ids = Object.keys(fromOrders);
     const validTrades = [];
     
@@ -220,13 +256,6 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
                     systemSecurity.indexOf(destinationSecuity) >= 0;
                     
                     if (validTrade) {
-                        const starting_system = initialOrder.system_id;
-                        const ending_system = closingOrder.system_id;
-                        const key1 = `${starting_system}-${ending_system}-${routeSafety}`;
-                        const key2 = `${ending_system}-${starting_system}-${routeSafety}`;
-                        const jumps = await redisClient.get(key1) ||  await redisClient.get(key2);
-                        const profit_per_jump = jumps == 0 ? round_value(profit, 2) : round_value(profit / jumps, 2);
-                    
                         const newRecord = {
                             'Item ID': initialOrder.type_id,
                             'Item': typeIDToName[initialOrder.type_id].name,
@@ -249,9 +278,9 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
                             'Net Sales': round_value(volume * closingOrder.price, 2),
                             'Gross Margin': round_value(volume * (closingOrder.price - initialOrder.price), 2),
                             'Sales Taxes': round_value(volume * (closingOrder.price * tax / 100), 2),
-                            'Net Profit': round_value(profit, 2),
-                            'Jumps': jumps,
-                            'Profit per Jump': profit_per_jump,
+                            'Net Profit': profit,
+                            'Jumps': 0,
+                            'Profit per Jump': 0,
                             'Profit Per Item': round_value(profit / volume, 2),
                             'ROI': round_value(100 * ROI, 2) + '%',
                             'Total Volume (m3)': round_value(weight, 2),
@@ -325,10 +354,6 @@ exports.handler = async function(event, context) {
     
     // Get cached mappings files for easier processing later.
     get_mappings();
-
-    await redisClient.connect().catch(error => {
-        console.log('Redis Client already connected.');
-    });
     
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
@@ -342,8 +367,20 @@ exports.handler = async function(event, context) {
     orders = remove_mismatch_type_ids(orders['from'], orders['to']);
     console.log(`Retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
-    let validTrades = await get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY, ROUTE_SAFETY);
+    let validTrades = await get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY);
     console.log(`Valid Trades = ${validTrades.length}`);    
+    
+    console.log(`Routes = ${Object.keys(jumpCount).length}`);
+
+    let routeData = await get_routes(ROUTE_SAFETY);
+
+    for (let i = 0; i < validTrades.length; i++) {
+        const systemFrom = validTrades[i]['From']['system_id'];
+        const systemTo = validTrades[i]['Take To']['system_id'];
+        validTrades[i]['Jumps'] = round_value(routeData[`${systemFrom}-${systemTo}`], 0);
+        validTrades[i]['Profit per Jump'] = round_value(validTrades[i]['Net Profit'] / validTrades[i]['Jumps'], 2);
+        validTrades[i]['Net Profit'] = round_value(validTrades[i]['Net Profit'], 2);
+    }
     
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
