@@ -34,10 +34,6 @@ jobs:
         run: |
           curl -X GET "$PROD_API/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
 
-      - name: Checking Resource Endpoint
-        run: |
-          curl -X GET "$PROD_API/resource?file=invTypes.json" | jq
-
       - name: Checking Orders Endpoint
         run: |
           curl -X GET "$PROD_API/orders?itemId=33697&from=10000002:60003760&to=10000043:60008494" | jq
@@ -64,10 +60,6 @@ jobs:
       - name: Checking Hauling Endpoint
         run: |
           curl -X GET "$DEV_API/hauling?from=10000002&to=10000043&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
-
-      - name: Checking Resource Endpoint
-        run: |
-          curl -X GET "$DEV_API/resource?file=invTypes.json" | jq
 
       - name: Checking Orders Endpoint
         run: |
