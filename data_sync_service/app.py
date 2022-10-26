@@ -39,12 +39,17 @@ def get_region_ids():
     '''
     Gets the region IDs from the mapRegions.json file
     '''
-    s3_file = s3.get_object(Bucket=AWS_BUCKET, Key='resources/mapRegions.json')
+    s3_file = s3.get_object(Bucket=AWS_BUCKET, Key='resources/universeList.json')
     s3_file_json = json.loads(s3_file['Body'].read())
 
     region_ids = []
     for item in s3_file_json:
-        region_ids.append(item['regionID'])
+        station = s3_file_json[item]
+
+        if 'region' in station:
+            region_ids.append(station['region'])
+
+    region_ids = list(set(region_ids))
 
     return region_ids
 
