@@ -33,11 +33,11 @@ s3 = boto3.client(
 
 es_client = Elasticsearch(ES_HOST)
 
-# Function which pulls mapRegions.json file from S3
+# Function which pulls universeList.json file from S3
 # and returns the regionID values as an array
 def get_region_ids():
     '''
-    Gets the region IDs from the mapRegions.json file
+    Gets the region IDs from the universeList.json file
     '''
     s3_file = s3.get_object(Bucket=AWS_BUCKET, Key='resources/universeList.json')
     s3_file_json = json.loads(s3_file['Body'].read())
@@ -50,6 +50,8 @@ def get_region_ids():
             region_ids.append(station['region'])
 
     region_ids = list(set(region_ids))
+
+    print(f'Getting orders for {len(region_ids)} regions.')
 
     return region_ids
 
