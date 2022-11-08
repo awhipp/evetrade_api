@@ -358,14 +358,24 @@ exports.handler = async function(event, context) {
     const ROUTE_SAFETY = queries['routeSafety'] === undefined ? 'secure' : queries['routeSafety']; // secure, shortest, insecure
     const SYSTEM_SECURITY = queries['systemSecurity'] === undefined ? ['high_sec'] : queries['systemSecurity'].split(',');
     
+    let FROM = queries['from'];
+    let TO = queries['to'];
+    
+    const FROM_TYPE = FROM.startsWith('buy-') ? 'buy' : 'sell';
+    const TO_TYPE = TO.startsWith('sell-') ? 'sell' : 'buy';
+    
+    FROM = FROM.replace('buy-', '').replace('sell-', '');
+    TO = TO.replace('buy-', '').replace('sell-', '');
+    
+    
     // Get cached mappings files for easier processing later.
     get_mappings();
     
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     let orders = {
-        'from': await get_orders(queries['from'], 'sell'),
-        'to': await get_orders(queries['to'], 'buy')
+        'from': await get_orders(FROM, FROM_TYPE),
+        'to': await get_orders(TO, TO_TYPE)
     };
     
     // Grab one item per station in each each (cheaper for sell orders, expensive for buy orders)
