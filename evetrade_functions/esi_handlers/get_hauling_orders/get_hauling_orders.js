@@ -340,6 +340,17 @@ function get_mappings() {
     });
 }
 
+function compare( a, b ) {
+  if ( a['Net Profit'] < b['Net Profit'] ){
+    return -1;
+  }
+  if ( a['Net Profit'] > b['Net Profit'] ){
+    return 1;
+  }
+  return 0;
+}
+
+
 /**
 * Lambda function handler
 * @param {*} event 
@@ -384,6 +395,9 @@ exports.handler = async function(event, context) {
     console.log(`Retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     let validTrades = await get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY);
+    validTrades = validTrades.sort(compare);
+    validTrades = validTrades.slice(0, 1000);
+    
     console.log(`Valid Trades = ${validTrades.length}`);    
     
     console.log(`Routes = ${Object.keys(jumpCount).length}`);
@@ -404,7 +418,7 @@ exports.handler = async function(event, context) {
 
         validTrades[i]['Net Profit'] = round_value(validTrades[i]['Net Profit'], 2);
     }
-    
+
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     return {

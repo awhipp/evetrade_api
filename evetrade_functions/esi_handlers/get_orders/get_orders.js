@@ -56,12 +56,18 @@ exports.handler = async function(event, context) {
     console.log(event);
     const queries = event['queryStringParameters'];
     const ITEM_ID = queries['itemId'];
-    const FROM = queries['from'].split(':');
-    const TO = queries['to'].split(':');
+    let FROM = queries['from'];
+    let TO = queries['to'];
+    
+    const FROM_TYPE = FROM.startsWith('buy-') ? 'buy' : 'sell';
+    const TO_TYPE = TO.startsWith('sell-') ? 'sell' : 'buy';
+    
+    FROM = FROM.replace('buy-', '').replace('sell-', '').split(':');
+    TO = TO.replace('buy-', '').replace('sell-', '').split(':');
 
     const orders = {
-        'from': await get_orders(ITEM_ID, FROM[0], FROM[1], 'sell'),
-        'to': await get_orders(ITEM_ID, TO[0], TO[1], 'buy'),
+        'from': await get_orders(ITEM_ID, FROM[0], FROM[1], FROM_TYPE),
+        'to': await get_orders(ITEM_ID, TO[0], TO[1], TO_TYPE),
     };
 
     return {
