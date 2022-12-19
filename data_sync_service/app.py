@@ -215,7 +215,7 @@ def background_task():
             print(f'Error executing sync. Exception: {str(general_exception)}')
             traceback.print_exc()
         finally:
-            time.sleep(10)
+            time.sleep(60)
 
 @app.route("/")
 def run():
