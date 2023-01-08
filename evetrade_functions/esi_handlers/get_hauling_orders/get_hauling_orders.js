@@ -8,6 +8,8 @@ const s3 = new AWS.S3();
 let typeIDToName, stationIdToName, systemIdToSecurity;
 
 const jumpCount = {};
+
+const MAX_PAYLOAD_SIZE_BYTES = 5 * 1024 * 1024;
     
 const client = new Client({
     node: process.env.ES_HOST
@@ -237,6 +239,7 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
         if (typeIDToName[id]) {
             for (const initialOrder of fromOrders[id]) {
                 for (const closingOrder of toOrders[id]) {
+                        
                     let volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
                     let weight = typeIDToName[initialOrder.type_id].volume * volume;
                     
@@ -260,7 +263,7 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
                     weight <= maxWeight &&
                     systemSecurity.indexOf(sourceSecurity) >= 0 &&
                     systemSecurity.indexOf(destinationSecuity) >= 0;
-                    
+
                     if (validTrade) {
                         const newRecord = {
                             'Item ID': initialOrder.type_id,
@@ -340,6 +343,17 @@ function get_mappings() {
     });
 }
 
+function compare( a, b ) {
+  if ( a['Net Profit'] < b['Net Profit'] ){
+    return -1;
+  }
+  if ( a['Net Profit'] > b['Net Profit'] ){
+    return 1;
+  }
+  return 0;
+}
+
+
 /**
 * Lambda function handler
 * @param {*} event 
@@ -358,14 +372,24 @@ exports.handler = async function(event, context) {
     const ROUTE_SAFETY = queries['routeSafety'] === undefined ? 'secure' : queries['routeSafety']; // secure, shortest, insecure
     const SYSTEM_SECURITY = queries['systemSecurity'] === undefined ? ['high_sec'] : queries['systemSecurity'].split(',');
     
+    let FROM = queries['from'];
+    let TO = queries['to'];
+    
+    const FROM_TYPE = FROM.startsWith('buy-') ? 'buy' : 'sell';
+    const TO_TYPE = TO.startsWith('sell-') ? 'sell' : 'buy';
+    
+    FROM = FROM.replace('buy-', '').replace('sell-', '');
+    TO = TO.replace('buy-', '').replace('sell-', '');
+    
+    
     // Get cached mappings files for easier processing later.
     get_mappings();
     
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     let orders = {
-        'from': await get_orders(queries['from'], 'sell'),
-        'to': await get_orders(queries['to'], 'buy')
+        'from': await get_orders(FROM, FROM_TYPE),
+        'to': await get_orders(TO, TO_TYPE)
     };
     
     // Grab one item per station in each each (cheaper for sell orders, expensive for buy orders)
@@ -374,6 +398,9 @@ exports.handler = async function(event, context) {
     console.log(`Retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     let validTrades = await get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY);
+    validTrades = validTrades.sort(compare);
+    validTrades = validTrades.slice(0, 1000);
+    
     console.log(`Valid Trades = ${validTrades.length}`);    
     
     console.log(`Routes = ${Object.keys(jumpCount).length}`);
@@ -394,13 +421,19 @@ exports.handler = async function(event, context) {
 
         validTrades[i]['Net Profit'] = round_value(validTrades[i]['Net Profit'], 2);
     }
+
+    validTrades = validTrades.sort(compare);
+
+    let bytes = Buffer.byteLength(JSON.stringify(validTrades));
     
+    while (bytes > MAX_PAYLOAD_SIZE_BYTES) {
+        validTrades.splice(-100);
+        bytes = Buffer.byteLength(JSON.stringify(validTrades));
+    }
+    
+    console.log(`Truncated Valid Trades = ${validTrades.length}`);    
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
+    console.log(`Size of payload is ${bytes/1024/1024} megabytes`);
     
-    return {
-        headers: {
-            'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify(validTrades)
-    };
+    return JSON.stringify(validTrades);
 };

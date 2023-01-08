@@ -29,7 +29,18 @@
           "minProfit": 500000,
           "minROI": 0.05,
           "routeSafety": "secure",
-          "systemSecurity": ["high_sec"]
+          "systemSecurity": "high_sec"
+        }
+      },
+      "Station Hauling - Buy to Sell": {
+        "queryStringParameters": {
+          "from": "buy-10000002:60003760",
+          "to": "sell-10000043:60008494",
+          "tax": 0.08,
+          "minProfit": 500000,
+          "minROI": 0.05,
+          "routeSafety": "secure",
+          "systemSecurity": "high_sec"
         }
       }
 }
