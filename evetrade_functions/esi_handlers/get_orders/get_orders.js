@@ -70,10 +70,5 @@ exports.handler = async function(event, context) {
         'to': await get_orders(ITEM_ID, TO[0], TO[1], TO_TYPE),
     };
 
-    return {
-        headers: {
-          'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify(orders)
-    };
+    return JSON.stringify(orders);
 };

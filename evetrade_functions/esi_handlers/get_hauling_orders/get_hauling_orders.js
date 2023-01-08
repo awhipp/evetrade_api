@@ -8,6 +8,8 @@ const s3 = new AWS.S3();
 let typeIDToName, stationIdToName, systemIdToSecurity;
 
 const jumpCount = {};
+
+const MAX_PAYLOAD_SIZE_BYTES = 5 * 1024 * 1024;
     
 const client = new Client({
     node: process.env.ES_HOST
@@ -237,6 +239,7 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
         if (typeIDToName[id]) {
             for (const initialOrder of fromOrders[id]) {
                 for (const closingOrder of toOrders[id]) {
+                        
                     let volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
                     let weight = typeIDToName[initialOrder.type_id].volume * volume;
                     
@@ -260,7 +263,7 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
                     weight <= maxWeight &&
                     systemSecurity.indexOf(sourceSecurity) >= 0 &&
                     systemSecurity.indexOf(destinationSecuity) >= 0;
-                    
+
                     if (validTrade) {
                         const newRecord = {
                             'Item ID': initialOrder.type_id,
@@ -419,12 +422,18 @@ exports.handler = async function(event, context) {
         validTrades[i]['Net Profit'] = round_value(validTrades[i]['Net Profit'], 2);
     }
 
-    console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
+    validTrades = validTrades.sort(compare);
+
+    let bytes = Buffer.byteLength(JSON.stringify(validTrades));
     
-    return {
-        headers: {
-            'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify(validTrades)
-    };
+    while (bytes > MAX_PAYLOAD_SIZE_BYTES) {
+        validTrades.splice(-100);
+        bytes = Buffer.byteLength(JSON.stringify(validTrades));
+    }
+    
+    console.log(`Truncated Valid Trades = ${validTrades.length}`);    
+    console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
+    console.log(`Size of payload is ${bytes/1024/1024} megabytes`);
+    
+    return JSON.stringify(validTrades);
 };

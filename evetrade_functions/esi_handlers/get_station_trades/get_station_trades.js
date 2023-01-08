@@ -265,10 +265,5 @@ exports.handler = async function(event, context) {
     
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
-    return {
-        headers: {
-            'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify(orders)
-    };
+    return JSON.stringify(orders);
 };

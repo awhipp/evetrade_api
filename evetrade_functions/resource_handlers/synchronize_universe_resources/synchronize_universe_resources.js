@@ -158,7 +158,6 @@ exports.handler = async function(event, context) {
     // Gets the 95th percentile of lambda execution time for the last 14 days
     const apiFunctions = [
         'evetrade-get-orders',
-        'evetrade-get-resource',
         'evetrade-get-hauling-orders',
         'evetrade-get-station-trades',
         'evetrade-synchronize-universe-resources'
