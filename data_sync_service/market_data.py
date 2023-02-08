@@ -84,7 +84,16 @@ class MarketData:
         best_orders = {}
 
         for order in self.orders:
-            if 'location_id' in order and order['location_id'] < 99999999:
+            if order['location_id'] < 99999999:
+                order['citadel'] = False
+            else:
+                # TODO: Citadel orders are not supported
+                # Add logic to handle citadel orders
+                order['citadel'] = True
+                continue
+
+            if 'location_id' in order:
+                order['citadel'] = False
                 station_id = order['location_id']
                 type_id = order['type_id']
 
@@ -107,7 +116,7 @@ class MarketData:
 
         valid_orders = []
 
-        for station_id in best_orders:
+        for station_id in best_orders: # pylint: disable=consider-using-dict-items
             for type_id in best_orders[station_id]:
                 if 'buy_order' in best_orders[station_id][type_id]:
                     order = best_orders[station_id][type_id]['buy_order']

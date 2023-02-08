@@ -59,6 +59,12 @@ async function get_orders(locations, orderType) {
                     'is_buy_order': is_buy_order
                 }
             },
+            // TODO: Remove this when citadel data is available
+            {
+                'term': {
+                    'citadel': false
+                }
+            },
             {
                 'term': {
                     'min_volume': 1
