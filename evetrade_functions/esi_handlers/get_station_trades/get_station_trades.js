@@ -151,7 +151,7 @@ function remove_mismatch_type_ids(buyArray, sellArray) {
 * @param {*} sell_orders List of currrent sell orders in the station
 * @returns profitable trades
 */
-async function find_station_trades(orders, salesTax, brokerFee, marginLimit, profitLimit, volumeIdx) {
+async function find_station_trades(orders, salesTax, brokerFee, marginLimit, profitLimit) {
     const station_trades = [];
     
     for (const itemId in orders.buy) {
@@ -173,12 +173,10 @@ async function find_station_trades(orders, salesTax, brokerFee, marginLimit, pro
             
             if (typeIDToName[itemId]) {
                 const itemVolume = await redisClient.get(`${buyOrder.region_id}-${itemId}`);
-                let volumeValues = [0,0,0];
+                let avg_volume = 0;
                 if (itemVolume !== null) {
-                    volumeValues = itemVolume.split(',');
+                    avg_volume = itemVolume.split(',')[0];
                 }
-                
-                const volume = volumeValues[volumeIdx];
             
                 const row = {
                     'Item ID': itemId,
@@ -187,7 +185,7 @@ async function find_station_trades(orders, salesTax, brokerFee, marginLimit, pro
                     'Sell Price': round_value(salePrice, 2),
                     'Net Profit': round_value(itemProfit, 2),
                     'ROI': round_value(100 * ROI, 2) + '%',
-                    'Volume': volume,
+                    'Volume': avg_volume,
                     'Margin': round_value(itemMargin * 100, 2) + '%',
                     'Sales Tax': round_value(itemSellTax, 2),
                     'Gross Margin':round_value(grossMargin, 2),
@@ -238,7 +236,6 @@ exports.handler = async function(event, context) {
         parseFloat(queries['margins'].split(',')[1])
     ];
     const MIN_VOLUME = queries['min_volume'] === undefined ? 1000 : parseInt(queries['min_volume'], 10);
-    const VOLUME_FILTER = queries['volume_filter'] === undefined ? 1 : parseInt(queries['volume_filter'], 10);
     const PROFIT_LIMIT = queries['profit'] === undefined ? 1000 : parseInt(queries['profit'], 10);
     
     // Get cached mappings files for easier processing later.
@@ -255,15 +252,14 @@ exports.handler = async function(event, context) {
     const sell_orders = await get_orders(STATION, false);
     let orders = remove_mismatch_type_ids(buy_orders, sell_orders);
     
-    const volume_index = VOLUME_FILTER == 1 ? 0 : VOLUME_FILTER == 14 ? 1 : 2;
-    
-    orders = await find_station_trades(orders, SALES_TAX, BROKER_FEE, MARGINS, PROFIT_LIMIT, volume_index);
+    orders = await find_station_trades(orders, SALES_TAX, BROKER_FEE, MARGINS, PROFIT_LIMIT);
     
     orders = orders.filter(function(item){
         return item[`Volume`] > MIN_VOLUME;         
     });
     
     console.log(`Full analysis took: ${(new Date() - startTime) / 1000} seconds to process.`);
+    console.log(`Found ${orders.length} profitable trades.`);
     
     return JSON.stringify(orders);
 };

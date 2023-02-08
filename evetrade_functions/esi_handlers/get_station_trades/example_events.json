@@ -5,7 +5,6 @@
         "fee": "0.03",
         "margins": "0.20,0.50",
         "min_volume": "10000",
-        "volume_filter": 1,
         "profit": 1000
     }
 }
