@@ -11,6 +11,8 @@ import threading
 import traceback
 import boto3
 
+import citadel_data
+
 from flask import Flask
 from waitress import serve
 from market_data import MarketData
@@ -78,6 +80,16 @@ def get_data(index_name, region_ids):
             order_thread.start()
             threads.append(order_thread)
             order_count += len(orders)
+
+    orders = citadel_data.get_citadel_orders()
+    order_thread = threading.Thread(
+        target=load_orders_to_es,
+        name='Ingesting Orders for Citadels',
+        args=(index_name, orders, 'Citadels')
+    )
+    order_thread.start()
+    threads.append(order_thread)
+    order_count += len(orders)
 
     for order_thread in threads:
         order_thread.join()

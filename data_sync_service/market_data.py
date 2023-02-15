@@ -14,7 +14,6 @@ ESI_ENDPOINT = 'https://esi.evetech.net'
 if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith('win'):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-
 class MarketData:
     '''
     Market Data class for a given region, order_type, and set of station_ids (optional)
@@ -45,7 +44,7 @@ class MarketData:
         '''
         Gets an initial page of market data (synchronously) in order to get the number of pages
         '''
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
         self.orders = self.orders + response.json()
         self.page_count = int(response.headers['x-pages'])
 
@@ -84,16 +83,11 @@ class MarketData:
         best_orders = {}
 
         for order in self.orders:
-            if order['location_id'] < 99999999:
-                order['citadel'] = False
-            else:
-                # TODO: Citadel orders are not supported
-                # Add logic to handle citadel orders
-                order['citadel'] = True
+            if order['location_id'] > 99999999:
                 continue
-
+                
+            order['citadel'] = False
             if 'location_id' in order:
-                order['citadel'] = False
                 station_id = order['location_id']
                 type_id = order['type_id']
 
