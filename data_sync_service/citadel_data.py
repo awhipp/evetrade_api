@@ -150,8 +150,19 @@ def find_best_orders(citadel_orders):
                 best_orders[station_id][type_id]['sell_order'] = order
             elif order['price'] < best_orders[station_id][type_id]['sell_order']['price']:
                 best_orders[station_id][type_id]['sell_order'] = order
-    
-    return best_orders
+
+    valid_orders = []
+
+    for station_id in best_orders: # pylint: disable=consider-using-dict-items
+        for type_id in best_orders[station_id]:
+            if 'buy_order' in best_orders[station_id][type_id]:
+                order = best_orders[station_id][type_id]['buy_order']
+                valid_orders.append(order)
+            if 'sell_order' in best_orders[station_id][type_id]:
+                order = best_orders[station_id][type_id]['sell_order']
+                valid_orders.append(order)
+
+    return valid_orders
 
 
 # ! TODO - Figure why perimeter does not show
