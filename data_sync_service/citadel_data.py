@@ -169,5 +169,8 @@ def get_citadel_orders():
     orders = enrich_orders(orders, citadels_info)
     orders = find_best_orders(orders)
     end = time.time()
-    print(f"Time: {end - start}")
-    return [json.dumps(record) for record in orders]
+
+    print(f"Sample Order: {orders[0]}")
+    print(f"Time to pull Citadels: {end - start} seconds")
+    orders = [json.dumps(record) for record in orders]
+    return orders
