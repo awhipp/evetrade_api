@@ -65,6 +65,10 @@ def get_data(index_name, region_ids):
     threads = []
     order_count = 0
 
+    orders = citadel_data.get_citadel_orders()
+    load_orders_to_es(index_name, orders, 'Citadels')
+    order_count = len(orders)
+
     for region_id in region_ids:
 
         market_data = MarketData(region_id)
@@ -81,16 +85,6 @@ def get_data(index_name, region_ids):
             threads.append(order_thread)
             order_count += len(orders)
 
-    orders = citadel_data.get_citadel_orders()
-    order_thread = threading.Thread(
-        target=load_orders_to_es,
-        name='Ingesting Orders for Citadels',
-        args=(index_name, orders, 'Citadels')
-    )
-    order_thread.start()
-    threads.append(order_thread)
-    order_count += len(orders)
-
     for order_thread in threads:
         order_thread.join()
 
@@ -100,12 +94,11 @@ def create_index(index_name):
     '''
     Creates the index for the data sync service
     '''    
+
     print(f'Creating new index {index_name}')
 
     es_index_settings = {
-	    "settings" : {
-            "index.max_result_window": 2000000
-	    }
+	    "settings" : {}
     }
 
     es_client.indices.create(index = index_name, body = es_index_settings)
