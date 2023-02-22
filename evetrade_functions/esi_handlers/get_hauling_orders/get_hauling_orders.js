@@ -5,7 +5,7 @@ const { Client } = require('@elastic/elasticsearch');
 AWS.config.update({region: 'us-east-1'});
 const s3 = new AWS.S3();
 
-let typeIDToName, stationIdToName, systemIdToSecurity;
+let typeIDToName, stationIdToName, systemIdToSecurity, structureInfo;
 
 const jumpCount = {};
 
@@ -21,7 +21,7 @@ const client = new Client({
 * @param {*} orderType 
 * @returns Market Data Mapping which has all the requests executed
 */
-async function get_orders(locations, orderType) {
+async function get_orders(locations, orderType, structureType) {
     locations = locations.split(',');
     
     const is_buy_order = orderType === 'buy';
@@ -52,17 +52,12 @@ async function get_orders(locations, orderType) {
         }};
     }
     
+    
     const must_clause = {
         'must': [
             {
                 'term': {
                     'is_buy_order': is_buy_order
-                }
-            },
-            // TODO: Remove this when citadel data is available
-            {
-                'term': {
-                    'citadel': false
                 }
             },
             {
@@ -73,6 +68,26 @@ async function get_orders(locations, orderType) {
             terms_clause
         ]
     };
+    
+    if (structureType == 'citadel') {
+        must_clause['must'].push(
+            {
+                'term': {
+                    'citadel': true
+                }
+            }
+        );
+    }
+    
+    if (structureType == 'npc') {
+        must_clause['must'].push(
+            {
+                'term': {
+                    'citadel': false
+                }
+            }
+        );
+    }
     
     const search_body = {
         index: 'market_data',
@@ -224,6 +239,14 @@ function round_value(value, amount) {
     });
 }
 
+function get_station_name(stationId) {
+    if (stationId > 99999999) {
+        return structureInfo[stationId.toString()]["name"];
+    } else {
+        return stationIdToName[stationId];
+    }
+}
+
 /**
 * Based on given parameters it returns a set of valid trades which meet initial parameters
 * @param {*} fromOrders Originating orders
@@ -275,19 +298,21 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
                             'Item ID': initialOrder.type_id,
                             'Item': typeIDToName[initialOrder.type_id].name,
                             'From': {
-                                'name': stationIdToName[initialOrder.station_id],
+                                'name': get_station_name(initialOrder.station_id),
                                 'station_id': initialOrder.station_id,
                                 'system_id': initialOrder.system_id,
-                                'rating': systemIdToSecurity[initialOrder.system_id]['rating']
+                                'rating': systemIdToSecurity[initialOrder.system_id]['rating'],
+                                'citadel': initialOrder.station_id > 99999999
                             },
                             'Quantity': round_value(volume, 0),
                             'Buy Price': round_value(initialOrder.price, 2),
                             'Net Costs': round_value(volume * initialOrder.price, 2),
                             'Take To': {
-                                'name': stationIdToName[closingOrder.station_id],
+                                'name': get_station_name(closingOrder.station_id),
                                 'station_id': closingOrder.station_id,
                                 'system_id': closingOrder.system_id,
-                                'rating': systemIdToSecurity[closingOrder.system_id]['rating']
+                                'rating': systemIdToSecurity[closingOrder.system_id]['rating'],
+                                'citadel': closingOrder.station_id > 99999999
                             },
                             'Sell Price': round_value(closingOrder.price, 2),
                             'Net Sales': round_value(volume * closingOrder.price, 2),
@@ -347,6 +372,18 @@ function get_mappings() {
     .catch( err => { 
         console.log(`Failed`, err); 
     });
+    
+    
+    DOWNLOAD_PARAMS.Key = `resources/structureInfo.json`;
+    s3.getObject(DOWNLOAD_PARAMS)
+    .promise()
+    .then( data => { 
+        console.log(`Successfully retrieved structureInfo`);
+        structureInfo = JSON.parse(data.Body.toString('utf-8'));
+    })
+    .catch( err => { 
+        console.log(`Failed`, err); 
+    });
 }
 
 function compare( a, b ) {
@@ -377,6 +414,7 @@ exports.handler = async function(event, context) {
     const MAX_WEIGHT = queries['maxWeight'] === undefined ? Number.MAX_SAFE_INTEGER : parseFloat(queries['maxWeight']);
     const ROUTE_SAFETY = queries['routeSafety'] === undefined ? 'secure' : queries['routeSafety']; // secure, shortest, insecure
     const SYSTEM_SECURITY = queries['systemSecurity'] === undefined ? ['high_sec'] : queries['systemSecurity'].split(',');
+    const STRUCTURE_TYPE = queries['structureType'] === undefined ? 'both' : queries['structureType']; // citadel, npm, both
     
     let FROM = queries['from'];
     let TO = queries['to'];
@@ -394,8 +432,8 @@ exports.handler = async function(event, context) {
     console.log(`Mapping retrieval took: ${(new Date() - startTime) / 1000} seconds to process.`);
     
     let orders = {
-        'from': await get_orders(FROM, FROM_TYPE),
-        'to': await get_orders(TO, TO_TYPE)
+        'from': await get_orders(FROM, FROM_TYPE, STRUCTURE_TYPE),
+        'to': await get_orders(TO, TO_TYPE, STRUCTURE_TYPE)
     };
     
     // Grab one item per station in each each (cheaper for sell orders, expensive for buy orders)
