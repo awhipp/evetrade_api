@@ -65,42 +65,6 @@ async function upload_to_s3(bucket, key, body, contentType) {
     .promise()
     .then( data => { console.log(`Success`, data); })
     .catch( err => { console.log(`Failed`, err); });
-    
-    if (key.indexOf('invTypes') > 0) {
-        const json = JSON.parse(body.toString('utf-8'));
-        const typeIDToName = {};
-        for (const obj in json) {
-            const metadata = json[obj];
-            const typeId = metadata["typeID"];
-            const name = metadata["typeName"];
-            const volume = metadata["volume"];
-            typeIDToName[typeId] = {
-                "name": name,
-                "volume": volume
-            };
-        }
-        
-        await upload_to_s3('evetrade', 'resources/typeIDToName.json', JSON.stringify(typeIDToName), 'application/json');
-    }
-    
-    if (key.indexOf('universeList') > 0) {
-        const json = JSON.parse(body.toString('utf-8'));
-        const systemIdToSecurity = {};
-        for (const obj in json) {
-            const metadata = json[obj];
-            if (metadata["security"] != undefined) {
-                const systemId = metadata["system"];
-                const security = metadata["security"];
-                const securityCode = get_security_code(security);
-                
-                systemIdToSecurity[systemId] = {
-                    "rating": security,
-                    "security_code": securityCode
-                };
-            }
-        }
-        await upload_to_s3('evetrade', 'resources/systemIdToSecurity.json', JSON.stringify(systemIdToSecurity), 'application/json');
-    }
 }
 
 function p95(arr){

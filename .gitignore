@@ -126,3 +126,5 @@ dist
 .yarn/install-state.gz
 .pnp.*
 *.pyc
+
+data_sync_service/.venv/**

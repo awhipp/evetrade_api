@@ -268,67 +268,72 @@ async function get_valid_trades(fromOrders, toOrders, tax, minProfit, minROI, ma
         if (typeIDToName[id]) {
             for (const initialOrder of fromOrders[id]) {
                 for (const closingOrder of toOrders[id]) {
+                    try {
                         
-                    let volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
-                    let weight = typeIDToName[initialOrder.type_id].volume * volume;
-                    
-                    // If weight is greater than max weight rearrange volume to be less than max weight
-                    // Then run conditional checks
-                    if (weight > maxWeight) {
-                        volume = Math.floor((maxWeight/ weight) * volume);
-                        weight = typeIDToName[initialOrder.type_id].volume * volume;
-                    }
-                    
-                    const initialPrice = initialOrder.price * volume;
-                    const salePrice = closingOrder.price * volume * (1-tax);
-                    const profit = salePrice - initialPrice;
-                    const ROI = (salePrice-initialPrice)/initialPrice;
-                    const sourceSecurity = systemIdToSecurity[initialOrder.system_id]['security_code'];
-                    const destinationSecuity = systemIdToSecurity[closingOrder.system_id]['security_code'];
-                    
-                    const validTrade = profit >= minProfit &&
-                    ROI >= minROI && 
-                    initialPrice <= maxBudget && 
-                    weight <= maxWeight &&
-                    systemSecurity.indexOf(sourceSecurity) >= 0 &&
-                    systemSecurity.indexOf(destinationSecuity) >= 0;
-
-                    if (validTrade) {
-                        const newRecord = {
-                            'Item ID': initialOrder.type_id,
-                            'Item': typeIDToName[initialOrder.type_id].name,
-                            'From': {
-                                'name': get_station_name(initialOrder.station_id),
-                                'station_id': initialOrder.station_id,
-                                'system_id': initialOrder.system_id,
-                                'rating': systemIdToSecurity[initialOrder.system_id]['rating'],
-                                'citadel': initialOrder.station_id > 99999999
-                            },
-                            'Quantity': round_value(volume, 0),
-                            'Buy Price': round_value(initialOrder.price, 2),
-                            'Net Costs': round_value(volume * initialOrder.price, 2),
-                            'Take To': {
-                                'name': get_station_name(closingOrder.station_id),
-                                'station_id': closingOrder.station_id,
-                                'system_id': closingOrder.system_id,
-                                'rating': systemIdToSecurity[closingOrder.system_id]['rating'],
-                                'citadel': closingOrder.station_id > 99999999
-                            },
-                            'Sell Price': round_value(closingOrder.price, 2),
-                            'Net Sales': round_value(volume * closingOrder.price, 2),
-                            'Gross Margin': round_value(volume * (closingOrder.price - initialOrder.price), 2),
-                            'Sales Taxes': round_value(volume * (closingOrder.price * tax / 100), 2),
-                            'Net Profit': profit,
-                            'Jumps': 0,
-                            'Profit per Jump': 0,
-                            'Profit Per Item': round_value(profit / volume, 2),
-                            'ROI': round_value(100 * ROI, 2) + '%',
-                            'Total Volume (m3)': round_value(weight, 2),
-                        };
+                        let volume = closingOrder.volume_remain < initialOrder.volume_remain ? closingOrder.volume_remain : initialOrder.volume_remain;
+                        let weight = typeIDToName[initialOrder.type_id].volume * volume;
                         
-                        validTrades.push(newRecord);
+                        // If weight is greater than max weight rearrange volume to be less than max weight
+                        // Then run conditional checks
+                        if (weight > maxWeight) {
+                            volume = Math.floor((maxWeight/ weight) * volume);
+                            weight = typeIDToName[initialOrder.type_id].volume * volume;
+                        }
                         
-                        jumpCount[`${initialOrder.system_id}-${closingOrder.system_id}`] = '';
+                        const initialPrice = initialOrder.price * volume;
+                        const salePrice = closingOrder.price * volume * (1-tax);
+                        const profit = salePrice - initialPrice;
+                        const ROI = (salePrice-initialPrice)/initialPrice;
+                        const sourceSecurity = systemIdToSecurity[initialOrder.system_id]['security_code'];
+                        const destinationSecuity = systemIdToSecurity[closingOrder.system_id]['security_code'];
+                        
+                        const validTrade = profit >= minProfit &&
+                        ROI >= minROI && 
+                        initialPrice <= maxBudget && 
+                        weight <= maxWeight &&
+                        systemSecurity.indexOf(sourceSecurity) >= 0 &&
+                        systemSecurity.indexOf(destinationSecuity) >= 0;
+    
+                        if (validTrade) {
+                            const newRecord = {
+                                'Item ID': initialOrder.type_id,
+                                'Item': typeIDToName[initialOrder.type_id].name,
+                                'From': {
+                                    'name': get_station_name(initialOrder.station_id),
+                                    'station_id': initialOrder.station_id,
+                                    'system_id': initialOrder.system_id,
+                                    'rating': systemIdToSecurity[initialOrder.system_id]['rating'],
+                                    'citadel': initialOrder.station_id > 99999999
+                                },
+                                'Quantity': round_value(volume, 0),
+                                'Buy Price': round_value(initialOrder.price, 2),
+                                'Net Costs': round_value(volume * initialOrder.price, 2),
+                                'Take To': {
+                                    'name': get_station_name(closingOrder.station_id),
+                                    'station_id': closingOrder.station_id,
+                                    'system_id': closingOrder.system_id,
+                                    'rating': systemIdToSecurity[closingOrder.system_id]['rating'],
+                                    'citadel': closingOrder.station_id > 99999999
+                                },
+                                'Sell Price': round_value(closingOrder.price, 2),
+                                'Net Sales': round_value(volume * closingOrder.price, 2),
+                                'Gross Margin': round_value(volume * (closingOrder.price - initialOrder.price), 2),
+                                'Sales Taxes': round_value(volume * (closingOrder.price * tax / 100), 2),
+                                'Net Profit': profit,
+                                'Jumps': 0,
+                                'Profit per Jump': 0,
+                                'Profit Per Item': round_value(profit / volume, 2),
+                                'ROI': round_value(100 * ROI, 2) + '%',
+                                'Total Volume (m3)': round_value(weight, 2),
+                            };
+                            
+                            validTrades.push(newRecord);
+                            
+                            jumpCount[`${initialOrder.system_id}-${closingOrder.system_id}`] = '';
+                        }
+                        
+                    } catch (error) {
+                        // TODO fixme - Add security IDs for all systems (even without )
                     }
                 }
             }
@@ -405,6 +410,7 @@ function compare( a, b ) {
 */
 exports.handler = async function(event, context) {
     console.log(event);
+    
     const startTime = new Date();
     const queries = event['queryStringParameters'];
     const SALES_TAX = queries['tax'] === undefined ? 0.08 : parseFloat(queries['tax']);
@@ -478,4 +484,5 @@ exports.handler = async function(event, context) {
     
     
     return JSON.stringify(validTrades);
+
 };

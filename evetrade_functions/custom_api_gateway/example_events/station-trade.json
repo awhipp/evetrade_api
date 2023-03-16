@@ -1,0 +1,15 @@
+{
+    "rawPath": "/dev/station",
+    "headers": {
+      "x-forwarded-for": "",
+      "origin": "https://evetrade.space"
+    },
+    "queryStringParameters": {
+      "station": "60008494",
+      "tax": "0.08",
+      "fee": "0.03",
+      "margins": "0.10,0.50",
+      "min_volume": 1000,
+      "profit": 1000
+    }
+}

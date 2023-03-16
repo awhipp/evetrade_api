@@ -1,0 +1,16 @@
+{
+    "rawPath": "/dev/hauling",
+    "headers": {
+      "x-forwarded-for": "",
+      "origin": "https://evetrade.space"
+    },
+    "queryStringParameters": {
+      "from": "10000043",
+      "to": "10000002",
+      "tax": 0.08,
+      "minProfit": 500000,
+      "minROI": 0.05,
+      "routeSafety": "secure",
+      "systemSecurity": "high_sec"
+    }
+}
