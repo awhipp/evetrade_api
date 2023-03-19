@@ -15,6 +15,18 @@ const client = new Client({
     node: process.env.ES_HOST
 });
 
+// Load the SQS SDK for Node.js
+const SQS = new AWS.SQS({apiVersion: '2012-11-05'});
+
+async function sendMessage(payload) {
+    const params = {
+        MessageBody: JSON.stringify(payload),
+        QueueUrl: process.env.SQS_QUEUE_URL
+    };
+    
+    await SQS.sendMessage(params).promise();
+}
+
 /**
 * Generates and executes market data requests based on the requested queries
 * @param {*} inputList 
@@ -145,6 +157,8 @@ async function get_routes(routeSafety) {
             }
         });
     }
+
+    const sqsMessagesToSend = [];
     
     const chunkSize = 128;
     for (let i = 0; i < should_clause.length; i += chunkSize) {
@@ -153,7 +167,7 @@ async function get_routes(routeSafety) {
         const search_body = {
             index: 'evetrade_jump_data',
             size: 10000,
-            _source: [routeSafety, 'route'],
+            _source: [routeSafety, 'route', 'last_modified'],
             body: {
                 query: {
                     'bool': {
@@ -175,6 +189,27 @@ async function get_routes(routeSafety) {
             const route = doc['route'];
             const jumps = doc[routeSafety];
             jumpCount[route] = jumps;
+
+            // If last modified data is 30 days or older then send a message to SQS to check for update
+            const lastModified = new Date(doc['last_modified']);
+            const now = new Date();
+            const diffTime = Math.abs(now - lastModified);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays > 30) {
+                if (sqsMessagesToSend.includes(route) === false) {
+                    sqsMessagesToSend.push(route);
+                }
+            }
+        });
+    }
+
+    console.log(`Sending ${sqsMessagesToSend.length} messages to SQS to update routes.`);
+    for (const message of sqsMessagesToSend) {
+        const start = message.split('-')[0];
+        const end = message.split('-')[1];
+        await sendMessage({
+            start: start,
+            end: end,
         });
     }
 
