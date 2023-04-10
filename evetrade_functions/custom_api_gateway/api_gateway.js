@@ -37,8 +37,34 @@ async function check_rate_limit(headers) {
     }
     
     // Check if the current count exceeds the rate limit
-    console.log(`${rateLimitKey} - Current Count: ${currentCount} of ${ process.env.RATE_LIMIT_COUNT}.`);
-    return currentCount > process.env.RATE_LIMIT_COUNT;
+    console.log(`${rateLimitKey} - Current Count: ${currentCount} of ${process.env.RATE_LIMIT_COUNT}.`);
+    
+    const dailyRateLimitKey = `daily_rate_limit:${ip}`;
+    let dailyCount = await client.get(dailyRateLimitKey);
+    
+    if (currentCount > process.env.RATE_LIMIT_COUNT) {
+        dailyCount = await client.incr(dailyRateLimitKey);
+        console.log(`${dailyRateLimitKey} - Daily Rate Limit: ${dailyCount} of ${process.env.RATE_LIMIT_COUNT*2} today.`);
+    
+        if (dailyCount == 1) {
+            await client.expire(dailyRateLimitKey, process.env.RATE_LIMIT_INTERVAL * 60 * 24);
+        }
+        
+        if (dailyCount == 10) {
+            await client.expire(dailyRateLimitKey, process.env.RATE_LIMIT_INTERVAL * 60 * 24 * 7);
+            return 403;
+        }
+    }
+    
+    if (dailyCount >= 10) {
+        console.log(`${dailyRateLimitKey} - Daily Rate Limit: ${dailyCount} of ${process.env.RATE_LIMIT_COUNT*2} today.`);
+        return 403;
+    }
+    else if (currentCount > process.env.RATE_LIMIT_COUNT) {
+        return 429;
+    } else {
+        return 200;
+    }
 }
 
 async function check_authorization(headers) {
@@ -66,7 +92,7 @@ async function check_authorization(headers) {
         if (!('origin' in headers)) {
             console.log('Origin not in headers.');
             authorized = false;
-        } else        if (headers.origin.indexOf('evetrade.space') == -1) {
+        } else if (headers.origin.indexOf('evetrade.space') == -1 && headers.origin.indexOf('evetrade.netlify.app') == -1) {
             console.log('Not originating from evetrade.space domain.');
             authorized = false;
         }
@@ -84,20 +110,27 @@ function payload(statusCode, body) {
         });
 }
 
-exports.handler = async function(event, context) {
+exports.handler = awslambda.streamifyResponse(async (event, responseStream, _context) => {
     console.log(event);
-    
-    const rate_limit_exceeded = await check_rate_limit(event.headers);
-    
-    if (rate_limit_exceeded) {
-        return payload(429, 'Too Many Requests.');
-    }
     
     const authorized = await check_authorization(event.headers);
     
     if (!authorized) {
         return payload(401, 'Unauthorized.');
     }
+    
+    const rate_limit_exceeded = await check_rate_limit(event.headers);
+    
+    if (rate_limit_exceeded == 429) {
+        console.log('Rate Limit Exceeded: ' + event.headers['x-forwarded-for']);
+        return payload(429, 'Too Many Requests.');
+    }
+    
+    if (rate_limit_exceeded == 403) {
+        console.log('Rate Limit Exceeded 10 times: ' + event.headers['x-forwarded-for']);
+        return payload(403, 'You have been warned.');
+    }
+    
     
     
     // Map the path to the corresponding Lambda function name
@@ -144,5 +177,6 @@ exports.handler = async function(event, context) {
     ).promise();
     
     // Return the response from the invoked Lambda function
-    return JSON.parse(response.Payload);
-};
+    responseStream.write(response.Payload);
+    responseStream.end();
+});
