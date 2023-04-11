@@ -1,4 +1,4 @@
-name: Testing EveTrade API using Pytest
+name: EVETrade API Tests
 
 # Controls when the workflow will run
 on:
@@ -52,3 +52,8 @@ jobs:
           RATE_LIMIT_INTERVAL: ''
         run: |
           python -m poetry run python -m pytest -sxv
+
+      - name: Pytest coverage comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
