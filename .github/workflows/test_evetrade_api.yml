@@ -47,5 +47,8 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           ES_HOST: ${{ secrets.ES_HOST }}
           IP_WHITE_LIST: ${{ secrets.IP_WHITE_LIST }}
+          IP_BAN_LIST: ''
+          RATE_LIMIT_COUNT: ''
+          RATE_LIMIT_INTERVAL: ''
         run: |
           python -m poetry run python -m pytest -sxv
