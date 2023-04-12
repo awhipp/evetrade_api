@@ -51,7 +51,7 @@ jobs:
           RATE_LIMIT_COUNT: ''
           RATE_LIMIT_INTERVAL: ''
         run: |
-          python -m poetry run python -m pytest -sxv
+          python -m poetry run python -m pytest --disable-warnings -xv
 
       - name: Pytest coverage comment
         uses: MishaKav/pytest-coverage-comment@main

@@ -15,5 +15,5 @@ pytest
 ```
 
 ```
-pytest --cov=src --cov-report term-missing --cov-report=xml
+pytest --cov=api --cov-report term-missing --cov-report=xml
 ```
