@@ -57,3 +57,12 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@main
         with:
           pytest-xml-coverage-path: ./coverage.xml
+          title: Code Coverage
+          badge-title: Code Coverage
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+          remove-link-from-badge: false
+          unique-id-for-comment: python3.9
