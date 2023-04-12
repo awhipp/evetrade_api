@@ -138,10 +138,10 @@ async def gateway (
     if path == '/hauling':
         return {}
     elif path == '/station':
-        import api.esi.station as station # pylint: disable=import-outside-toplevel
+        import api.evetrade.station as station # pylint: disable=import-outside-toplevel
         return await station.get(request)
     elif path == '/orders':
-        import api.esi.orders as orders # pylint: disable=import-outside-toplevel
+        import api.evetrade.orders as orders # pylint: disable=import-outside-toplevel
         return await orders.get(request)
     else:
         return {
