@@ -77,9 +77,9 @@ async def find_station_trades(orders, sales_tax, broker_fee, margin_limit, profi
 
     type_id_to_name = get_type_id_mappings()
 
-    for item_id in orders['buy']:
-        buy_order = orders['buy'][item_id][0]
-        sell_order = orders['sell'][item_id][0]
+    for item_id in orders['from']:
+        buy_order = orders['from'][item_id][0]
+        sell_order = orders['to'][item_id][0]
 
         sale_price = float(sell_order['price'])
         buy_price = float(buy_order['price'])

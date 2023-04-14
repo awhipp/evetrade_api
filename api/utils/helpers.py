@@ -40,6 +40,6 @@ def remove_mismatch_type_ids(list_one: list, list_two: list) -> dict:
     print(f"After: Buy ID Count = {len(from_orders)} and Sell ID Count = {len(to_orders)}")
     
     return {
-        'buy': from_orders,
-        'sell': to_orders
+        'from': from_orders,
+        'to': to_orders
     }

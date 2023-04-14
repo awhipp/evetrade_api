@@ -136,7 +136,8 @@ async def gateway (
     path = request['rawPath']
 
     if path == '/hauling':
-        return {}
+        import api.evetrade.hauling as hauling # pylint: disable=import-outside-toplevel
+        return await hauling.get(request)
     elif path == '/station':
         import api.evetrade.station as station # pylint: disable=import-outside-toplevel
         return await station.get(request)

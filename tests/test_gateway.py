@@ -47,10 +47,11 @@ def test_get_orders(asyncio_loop) -> None:
             assert key in valid_keys
 
 
-def test_get_hauling(asyncio_loop) -> None:
+def test_get_hauling(asyncio_loop, mock_boto_sqs) -> None:
     '''
     Test the get hauling API.
     '''
+    # ASSIGN
     params = {
         "rawPath": "/hauling",
         "headers": {
@@ -58,13 +59,46 @@ def test_get_hauling(asyncio_loop) -> None:
             "origin": "https://evetrade.space"
         },
         "queryStringParameters": {
-            "from": "10000002:60003760",
-            "to": "10000043:60008494",
-            "itemId": "33697"
+            "from": "10000002",
+            "to": "10000043",
+            "tax": 0.08,
+            "minProfit": 500000,
+            "minROI": 0.05,
+            "routeSafety": "secure",
+            "maxWeight": 30000,
         }
     }
+
+    # ACT
     result = asyncio_loop.run_until_complete(gateway(params))
-    assert len(result) == 0 # type: ignore
+    
+    # ASSERT
+    assert len(result) > 0
+
+    valid_keys = [
+        'Item ID',
+        'Item',
+        'From',
+        'Quantity',
+        'Buy Price',
+        'Net Costs',
+        'Take To',
+        'Sell Price',
+        'Net Sales',
+        'Gross Margin',
+        'Sales Taxes',
+        'Net Profit',
+        'Jumps',
+        'Profit per Jump',
+        'Profit Per Item',
+        'ROI',
+        'Total Volume (m3)'
+    ]
+
+    # All orders should have all keys in above list
+    for order in result:
+        for key in order:
+            assert key in valid_keys
 
 
 def test_get_stations(asyncio_loop) -> None:
@@ -110,7 +144,6 @@ def test_get_stations(asyncio_loop) -> None:
         'Region ID'
     ]
 
-    
     # All orders should have all keys in above list
     for order in result:
         for key in order:
