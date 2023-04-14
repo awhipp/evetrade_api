@@ -66,3 +66,13 @@ jobs:
           report-only-changed-files: false
           remove-link-from-badge: false
           unique-id-for-comment: python3.9
+
+      - name: Generate Lambda Layer
+        run: |
+          cd .venv/lib/python3.9/site-packages
+          zip -r ../../../../evetrade-api-layer.zip .
+          cd ../../../../
+
+      - name: Generate Deployment Package
+        run: |
+          zip -r evetrade-api-deployment.zip api
