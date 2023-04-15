@@ -1,5 +1,5 @@
 // Compares profitable hailing orders between stations and/or regions (or within the same region)
-const AWS = require('aws-sdk');
+const AWS = require("aws-sdk");
 const { Client } = require('@elastic/elasticsearch');
 
 AWS.config.update({region: 'us-east-1'});
@@ -494,6 +494,14 @@ exports.handler = async function(event, context) {
         const systemTo = validTrades[i]['Take To']['system_id'];
 
         validTrades[i]['Jumps'] = round_value(routeData[`${systemFrom}-${systemTo}`], 0);
+        
+        if (validTrades[i]['Jumps'] === "") {
+            console.log(`Sending message for empty jumps:${systemFrom}-${systemTo}`);
+            await sendMessage({
+                start: systemFrom,
+                end: systemTo,
+            });
+        }
 
         if (routeData[`${systemFrom}-${systemTo}`] > 0) {
             validTrades[i]['Profit per Jump'] = round_value(validTrades[i]['Net Profit'] / validTrades[i]['Jumps'], 2);

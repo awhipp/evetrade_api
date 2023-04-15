@@ -352,6 +352,13 @@ async def get(request):
 
         valid_trade['Jumps'] = round_value(route_data[f"{system_from}-{system_to}"], 0)
 
+        if valid_trade['Jumps'] == '':
+            print(f"Sending message for empty jumps:{system_from}-{system_to}")
+            await send_message({
+                'start': system_from,
+                'end': system_to,
+            })
+
         if route_data[f"{system_from}-{system_to}"] > 0:
             valid_trade['Profit per Jump'] = round_value(valid_trade['Net Profit'] / int(valid_trade['Jumps']), 2)
         else:
