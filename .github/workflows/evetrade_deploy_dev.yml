@@ -56,16 +56,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Deploy to Lambda Function to Latest
+      - name: Deploy to Lambda Function to $LATEST
         run: |
           aws lambda update-function-code --function-name evetrade_api --zip-file fileb://evetrade-api-deployment.zip
       
-      - name: Update Release
-        env: # Or as an environment variable
-          GH_USER: ${{ secrets.GH_USER }}
-          GH_EMAIL: ${{ secrets.GH_EMAIL }}
+      - name: Deploy to Lambda Layer
         run: |
-          export today=$(date +"%Y%m%d")
-          git config --global user.email "${GH_EMAIL}"
-          git config --global user.name "${GH_USER}"
-          gh release create $today --title "Lambda Layer $today" --notes "Lambda Layer $today" evetrade-api-layer.zip
+          export PACKAGES=`ls .venv/lib/python3.8/site-packages/`
+          aws lambda publish-layer-version --layer-name evetrade_api_layer --description $PACKAGES --zip-file fileb://evetrade-api-layer.zip
