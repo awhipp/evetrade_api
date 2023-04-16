@@ -6,6 +6,7 @@ import os
 import time
 from datetime import datetime
 import boto3
+import traceback
 import requests
 from elasticsearch import Elasticsearch
 from api.utils.helpers import round_value, remove_mismatch_type_ids
@@ -234,7 +235,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                         # If weight is greater than max weight rearrange volume to be less than max weight
                         # Then run conditional checks
                         if weight > max_weight:
-                            volume = int((max_weight/ weight) * volume)
+                            volume = (max_weight/ weight) * volume
                             weight = type_id_to_name[initial_order_type_id]['volume'] * volume
 
                         initial_price = initial_order['price'] * volume
@@ -252,7 +253,6 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                                       destination_security in system_security
 
                         if valid_trade:
-                            new_record = {
                                 'Item ID': initial_order_type_id,
                                 'Item': type_id_to_name[initial_order_type_id]['name'],
                                 'From': {
@@ -288,7 +288,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
 
                             jump_count[f'{initial_order["system_id"]}-{closing_order["system_id"]}'] = ''
                     except Exception as e:
-                        print(e)
+                        traceback.print_exc()
                         print(f"Error processing trade {initial_order['type_id']} from {initial_order['station_id']} to {closing_order['station_id']}")
                         continue
 
