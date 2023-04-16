@@ -230,6 +230,8 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                         closing_order_system_id = str(closing_order['system_id'])
 
                         volume = min(closing_order['volume_remain'], initial_order['volume_remain'])
+                        if volume <= 0: # If volume_remain is zero then the order should not exist
+                            continue
                         weight = type_id_to_name[initial_order_type_id]['volume'] * volume
 
                         # If weight is greater than max weight rearrange volume to be less than max weight
