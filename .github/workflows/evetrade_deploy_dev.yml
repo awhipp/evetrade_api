@@ -2,10 +2,10 @@ name: EVETrade API Dev Deployment
 
 # Controls when the workflow will run
 on:
-  push
-
-branches:
-  - feature/ground_up_python_refactor # TODO make this develop branch
+  push:
+    branches:
+      - feature/ground_up_python_refactor # TODO switch to develop branch
+  
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
