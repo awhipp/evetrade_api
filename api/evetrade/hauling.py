@@ -305,7 +305,7 @@ def compare(a, b):
     else:
         return 0
 
-async def get(request):
+async def get(request) -> list:
     '''
     Get all hauling trades for a given event request
     '''

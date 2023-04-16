@@ -8,7 +8,7 @@ load_dotenv()
 
 from api.gateway import gateway
 
-def test_get_orders(asyncio_loop) -> None:
+def test_get_orders() -> None:
     '''
     Test the get orders API.
     '''
@@ -28,7 +28,7 @@ def test_get_orders(asyncio_loop) -> None:
     }
 
     # ACT
-    result = asyncio_loop.run_until_complete(gateway(params))
+    result = gateway(params)
 
     # ASSERT
     
@@ -47,7 +47,7 @@ def test_get_orders(asyncio_loop) -> None:
             assert key in valid_keys
 
 
-def test_get_hauling(asyncio_loop, mock_boto_sqs) -> None:
+def test_get_hauling(mock_boto_sqs) -> None:
     '''
     Test the get hauling API.
     '''
@@ -70,7 +70,7 @@ def test_get_hauling(asyncio_loop, mock_boto_sqs) -> None:
     }
 
     # ACT
-    result = asyncio_loop.run_until_complete(gateway(params))
+    result = gateway(params)
     
     # ASSERT
     assert len(result) > 0
@@ -101,7 +101,7 @@ def test_get_hauling(asyncio_loop, mock_boto_sqs) -> None:
             assert key in valid_keys
 
 
-def test_get_stations(asyncio_loop) -> None:
+def test_get_stations() -> None:
     '''
     Test the get stations API.
     '''
@@ -123,7 +123,7 @@ def test_get_stations(asyncio_loop) -> None:
     }
 
     # ACT
-    result = asyncio_loop.run_until_complete(gateway(params))
+    result = gateway(params)
 
     # ASSERT
     assert len(result) > 0
@@ -150,7 +150,7 @@ def test_get_stations(asyncio_loop) -> None:
             assert key in valid_keys
 
 
-def test_get_invalid(asyncio_loop) -> None:
+def test_get_invalid() -> None:
     '''
     Test the get invalid API.
     '''
@@ -166,7 +166,7 @@ def test_get_invalid(asyncio_loop) -> None:
         "itemId": "33697"
         }
     }
-    result = asyncio_loop.run_until_complete(gateway(params))
+    result = gateway(params)
     assert result == {
         "statusCode": 404,
         "body": "Not found."

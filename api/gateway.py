@@ -2,7 +2,6 @@
 Gateway Lambda function for the evetrade.space API which validates requests
 and routes them to the appropriate modules.
 '''
-#p
 import os
 import json
 import asyncio
@@ -31,7 +30,7 @@ class HTTPStatus:
     NOT_FOUND = 404
     TOO_MANY_REQUESTS = 429
 
-async def check_authorization(headers: dict) -> int:
+def check_authorization(headers: dict) -> int:
     '''
     Check if the request is authorized to access the Lambda function.
     '''
@@ -59,7 +58,7 @@ async def check_authorization(headers: dict) -> int:
     else:
         return HTTPStatus.OK
 
-async def check_rate_limit(headers) -> Union[
+def check_rate_limit(headers) -> Union[
         Literal[100], Literal[200], 
         Literal[400], Literal[401], Literal[403], Literal[404], Literal[429]
     ]:
@@ -104,13 +103,13 @@ async def check_rate_limit(headers) -> Union[
     else:
         return HTTPStatus.OK
 
-async def gateway (
+def gateway (
         request: Dict[str, Any]
 ) -> Union[Dict[str, Any], List]:
     '''
     Gateway function that routes requests to the appropriate downstream method after validating request
     '''
-    authorization = await check_authorization(request['headers'])
+    authorization = check_authorization(request['headers'])
 
     if authorization == HTTPStatus.UNAUTHORIZED:
         return {
@@ -118,7 +117,7 @@ async def gateway (
             'body': 'Unauthorized.'
         }
 
-    rate_limit_exceeded = HTTPStatus.OK if authorization == HTTPStatus.WHITELISTED else await check_rate_limit(request['headers'])
+    rate_limit_exceeded = HTTPStatus.OK if authorization == HTTPStatus.WHITELISTED else check_rate_limit(request['headers'])
 
     if rate_limit_exceeded == 429:
         print('Rate Limit Exceeded: ' + request['headers']['x-forwarded-for'])
@@ -138,13 +137,13 @@ async def gateway (
 
     if path == '/hauling':
         import api.evetrade.hauling as hauling # pylint: disable=import-outside-toplevel
-        return await hauling.get(request)
+        return asyncio.run(hauling.get(request))
     elif path == '/station':
         import api.evetrade.station as station # pylint: disable=import-outside-toplevel
-        return await station.get(request)
+        return asyncio.run(station.get(request))
     elif path == '/orders':
         import api.evetrade.orders as orders # pylint: disable=import-outside-toplevel
-        return await orders.get(request)
+        return asyncio.run(orders.get(request))
     else:
         return {
             'statusCode': HTTPStatus.NOT_FOUND,
@@ -161,7 +160,7 @@ def lambda_handler(
     """
     print(event)
 
-    response = asyncio.get_event_loop().run_until_complete(gateway(event))
+    response = gateway(event)
     # TODO implement streaming responses when released for python
     return {
         'statusCode': 200,
