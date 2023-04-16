@@ -162,11 +162,4 @@ def lambda_handler(
 
     response = gateway(event)
     # TODO implement streaming responses when released for python
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Credentials': True,
-        },
-        'body': json.dumps(response)
-    }
+    return json.dumps(response)
