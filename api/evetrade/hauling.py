@@ -253,6 +253,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                                       destination_security in system_security
 
                         if valid_trade:
+                            new_record = {
                                 'Item ID': initial_order_type_id,
                                 'Item': type_id_to_name[initial_order_type_id]['name'],
                                 'From': {
