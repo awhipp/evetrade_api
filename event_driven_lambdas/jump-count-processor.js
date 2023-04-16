@@ -65,13 +65,43 @@ async function get_doc_ids_from_elasticsearch(start, end) {
     const all_hits = response.body.hits.hits;
 
     console.log(`Retrieved ${all_hits.length} route IDs.`);
-    
+
     all_hits.forEach(function (hit) {
         const doc = hit['_source'];
         const id = hit['_id'];
         const route = doc['route'];
         routeIds[route] = id;
     });
+
+    if (routeIds[`${start}-${end}`] == undefined) {
+        console.log(`Route ID not found for ${start}-${end}. Creating new route in Elasticsearch`);
+        let response = await client.index({
+            index: 'evetrade_jump_data',
+            body: {
+                route: `${start}-${end}`,
+                insecure: -1,
+                secure: -1,
+                shortest: -1,
+                last_modified: new Date().getTime(),
+            }
+        });
+        routeIds[`${start}-${end}`] = response['doc_id']
+    }
+
+    if (routeIds[`${end}-${start}`] == undefined) {
+        console.log(`Route ID not found for ${end}-${start}. Creating new route in Elasticsearch`);
+        let response = await client.index({
+            index: 'evetrade_jump_data',
+            body: {
+                route: `${end}-${start}`,
+                insecure: -1,
+                secure: -1,
+                shortest: -1,
+                last_modified: new Date().getTime(),
+            }
+        });
+        routeIds[`${end}-${start}`] = response['doc_id']
+    }
 
     return routeIds;
 }

@@ -3,36 +3,26 @@ Data Sync Service which pulls data from the EVE API and loads it into the Elasti
 '''
 
 import os
-import json
 import time
 from datetime import datetime
 import asyncio
 import threading
 import traceback
-import boto3
 
 import citadel_data
 
 from flask import Flask
 from waitress import serve
+import requests
 from market_data import MarketData
 from elasticsearch import Elasticsearch, helpers
 
-AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
-AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
 AWS_BUCKET = os.environ['AWS_BUCKET']
 
 ES_ALIAS = os.environ['ES_ALIAS']
 ES_HOST = os.environ['ES_HOST']
 
 app = Flask(__name__)
-
-s3 = boto3.client(
-    's3',
-    aws_access_key_id=AWS_ACCESS_KEY,
-    aws_secret_access_key=AWS_SECRET_KEY
-)
-
 es_client = Elasticsearch(ES_HOST)
 
 # Function which pulls universeList.json file from S3
@@ -41,8 +31,9 @@ def get_region_ids():
     '''
     Gets the region IDs from the universeList.json file
     '''
-    s3_file = s3.get_object(Bucket=AWS_BUCKET, Key='resources/universeList.json')
-    s3_file_json = json.loads(s3_file['Body'].read())
+    s3_file_json: dict = requests.get(
+        'https://evetrade.s3.amazonaws.com/resources/universeList.json', timeout=30
+    ).json()
 
     region_ids = []
     for item in s3_file_json:

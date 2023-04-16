@@ -1,0 +1,64 @@
+name: EVETrade API Dev Deployment
+
+# Controls when the workflow will run
+on:
+  push:
+    branches:
+      - develop
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  test_evetrade_api:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+        
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      
+      - uses: actions/setup-python@v3
+        with:
+          python-version: 3.9
+
+      - name: Install and Configure poetry
+        run: |
+          python -m pip install poetry==1.3.2
+          python -m poetry config virtualenvs.in-project true
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: |
+          python -m poetry install --sync -vv
+
+      - name: Generate Lambda Layer
+        run: |
+          mkdir python
+          mv .venv/lib/python3.9/site-packages/* python/
+          zip -r evetrade-api-layer.zip python
+
+      - name: Generate Deployment Package
+        run: |
+          zip -r evetrade-api-deployment.zip api
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to Lambda Function and Layer
+        run: |
+          aws lambda update-function-code --function-name evetrade_api --zip-file fileb://evetrade-api-deployment.zip > /dev/null
+          export PACKAGES=`poetry show --only main  | awk '{ printf "%s ",$1 }'`
+          VERSION=$(aws lambda publish-layer-version --layer-name evetrade_api_layer --description "$PACKAGES" --compatible-runtimes python3.9 --compatible-architectures x86_64 --zip-file fileb://evetrade-api-layer.zip | jq -r '.Version')
+          aws lambda update-function-configuration --function-name evetrade_api --layers arn:aws:lambda:us-east-1:130613789231:layer:evetrade_api_layer:$VERSION > /dev/null
+          
