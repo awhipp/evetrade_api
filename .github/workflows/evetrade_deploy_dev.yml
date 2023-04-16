@@ -62,5 +62,5 @@ jobs:
       
       - name: Deploy to Lambda Layer
         run: |
-          export PACKAGES=`ls .venv/lib/python3.9/site-packages/`
+          export PACKAGES=`poetry show --only main  | awk '{ printf "%s ",$1 }'`
           aws lambda publish-layer-version --layer-name evetrade_api_layer --description "$PACKAGES" --zip-file fileb://evetrade-api-layer.zip
