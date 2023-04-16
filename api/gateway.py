@@ -5,6 +5,7 @@ and routes them to the appropriate modules.
 #p
 import os
 import json
+import asyncio
 from typing import Any, Dict, List, Union, Literal
 import redis
 
@@ -150,9 +151,8 @@ async def gateway (
             'body': 'Not found.'
         }
 
-async def lambda_handler(
+def lambda_handler(
     event: Dict[str, Any],
-    response_stream: Any,
     context: Any # pylint: disable=unused-argument
 ) -> Union[Dict[str, Any], None]:
     """
@@ -161,6 +161,13 @@ async def lambda_handler(
     """
     print(event)
 
-    response = await gateway(event)
-    response_stream.write(json.dumps(response).encode('utf-8'))
-    response_stream.close()
+    response = asyncio.get_event_loop().run_until_complete(gateway(event))
+    # TODO implement streaming responses when released for python
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Credentials': True,
+        },
+        'body': json.dumps(response)
+    }
