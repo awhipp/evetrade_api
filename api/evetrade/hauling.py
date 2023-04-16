@@ -288,7 +288,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                             valid_trades.append(new_record)
 
                             jump_count[f'{initial_order["system_id"]}-{closing_order["system_id"]}'] = ''
-                    except Exception as e:
+                    except Exception as unhandled_exception: # pylint: disable=broad-except
                         traceback.print_exc()
                         print(f"Error processing trade {initial_order['type_id']} from {initial_order['station_id']} to {closing_order['station_id']}")
                         continue
