@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m poetry install
+          python -m poetry install --sync -vv
 
       - name: Generate Lambda Layer
         run: |
