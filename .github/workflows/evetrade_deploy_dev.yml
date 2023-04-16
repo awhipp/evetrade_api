@@ -58,7 +58,8 @@ jobs:
 
       - name: Deploy to Lambda Function and Layer
         run: |
+          aws lambda update-function-code --function-name evetrade_api --zip-file fileb://evetrade-api-deployment.zip --publish
           export PACKAGES=`poetry show --only main  | awk '{ printf "%s ",$1 }'`
-          VERSION=$(aws lambda publish-layer-version --layer-name evetrade_api_layer --description "$PACKAGES" --zip-file fileb://evetrade-api-layer.zip | jq `.Version`)
-          aws lambda update-function-code --function-name evetrade_api --zip-file fileb://evetrade-api-deployment.zip --layers arn:aws:lambda:us-east-1:130613789231:layer:evetrade_api_layer:$VERSION
+          VERSION=$(aws lambda publish-layer-version --layer-name evetrade_api_layer --description "$PACKAGES" --zip-file fileb://evetrade-api-layer.zip | jq -r '.Version')
+          aws lambda update-function-configuration --function-name evetrade_api --layers arn:aws:lambda:us-east-1:130613789231:layer:evetrade_api_layer:$VERSION
           
