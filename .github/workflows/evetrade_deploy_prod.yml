@@ -1,0 +1,29 @@
+name: EVETrade API Prod Deployment
+
+# Controls when the workflow will run
+on:
+  push:
+    branches:
+      - main
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  test_evetrade_api:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to Lambda Function and Layer
+        run: |
+          aws lambda publish-version --function-name evetrade_api --description "${{ github.event.head_commit.message }}"
+          aws lambda update-alias --function-name evetrade_api --name evetrade_api_prod --function-version $(aws lambda list-versions-by-function --function-name evetrade_api  --query "max_by(Versions, &Version)" | jq -r '.Version')

@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "evetrade-api"
+version = "1.0.0"
+description = "The backend and serverless api implementation for EVETrade.space"
+authors = ["awhipp"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+boto3 = "^1.26.110"
+redis = "^4.5.4"
+elasticsearch = "~7.10.0"
+requests = "^2.28.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.3.0"
+pytest-mock = "^3.10.0"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.scripts]
+test = "pytest"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
