@@ -1,12 +1,17 @@
 '''
 Helper functions for the project
 '''
+import locale
+
+locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
 
 def round_value(value: float, amount: int) -> str:
     '''
     Round a float to a specified amount of decimal places
     '''
-    return f"{value:.{amount}f}"
+    format_str = f'%.{amount}f'
+    formatted_num = locale.format_string(format_str, value, grouping=True)
+    return formatted_num
 
 
 def remove_mismatch_type_ids(list_one: list, list_two: list) -> dict:
