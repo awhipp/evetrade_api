@@ -124,7 +124,8 @@ exports.handler = async function(event, context) {
         'evetrade-get-orders',
         'evetrade-get-hauling-orders',
         'evetrade-get-station-trades',
-        'evetrade-synchronize-universe-resources'
+        'evetrade-synchronize-universe-resources',
+        'evetrade_api'
     ];
 
     const functionDurations = {};
@@ -132,6 +133,7 @@ exports.handler = async function(event, context) {
     for (const functionName of apiFunctions) {
         const duration = await get_average_lambda_execution_time(functionName);
         functionDurations[functionName] = parseFloat(duration.toFixed(2));
+        console.log(`${functionName} average is ${duration.toFixed(2)} seconds`);
     }
 
     await upload_to_s3('evetrade', 'resources/functionDurations.json', JSON.stringify(functionDurations), 'application/json');
