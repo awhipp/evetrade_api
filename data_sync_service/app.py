@@ -44,7 +44,7 @@ def get_region_ids():
 
     region_ids = list(set(region_ids))
 
-    logging.info(f'Getting orders for {len(region_ids)} regions.')
+    print(f'Getting orders for {len(region_ids)} regions.')
 
     return region_ids
 
@@ -86,7 +86,7 @@ def create_index(index_name):
     Creates the index for the data sync service
     '''    
 
-    logging.info(f'Creating new index {index_name}')
+    print(f'Creating new index {index_name}')
 
     es_index_settings = {
 	    "settings" : {}
@@ -99,14 +99,14 @@ def load_orders_to_es(index_name, all_orders, region_id):
     '''
     Loads a list of orders to the Elasticsearch instance
     '''
-    logging.info(f'Ingesting {len(all_orders)} orders from {region_id} into {index_name}')
+    print(f'Ingesting {len(all_orders)} orders from {region_id} into {index_name}')
     helpers.bulk(es_client, all_orders, index=index_name, request_timeout=30)
 
 def get_index_with_alias(alias):
     '''
     Returns the index name that the alias points to
     '''
-    logging.info(f'Getting index with alias {alias}')
+    print(f'Getting index with alias {alias}')
     if es_client.indices.exists_alias(name=alias):
         return (list(es_client.indices.get_alias(index=alias).keys())[0])
     return None
@@ -115,7 +115,7 @@ def update_alias(new_index, alias):
     '''
     Updates the alias to point to the new index
     '''
-    logging.info(f'Removing adding {alias} to {new_index}')
+    print(f'Removing adding {alias} to {new_index}')
     if new_index and alias:
         es_client.indices.update_aliases(body={
             "actions": [
@@ -138,7 +138,7 @@ def refresh_index(index_name):
     '''
     Refreshes an index
     '''
-    logging.info(f'Refreshing index {index_name}')
+    print(f'Refreshing index {index_name}')
     if index_name and es_client.indices.exists(index_name):
         es_client.indices.refresh(index=index_name)
 
@@ -146,7 +146,7 @@ def delete_index(index_name):
     '''
     Deletes an index from the Elasticsearch instance
     '''
-    logging.info(f'Deleting index {index_name}')
+    print(f'Deleting index {index_name}')
     if index_name and es_client.indices.exists(index_name):
         es_client.indices.delete(index_name)
 
@@ -157,7 +157,7 @@ def delete_stale_indices(protected_indices):
     indices = es_client.indices.get_alias(index='*')
     for index in indices:
         if index not in protected_indices:
-            logging.info(f'Deleting stale index {index}')
+            print(f'Deleting stale index {index}')
             delete_index(index)
 
 def execute_sync():
@@ -170,7 +170,7 @@ def execute_sync():
 
     try:
         index_name = f'market-data-{now.strftime("%Y%m%d-%H%M%S")}'
-        logging.info(f'--Executing sync on index {index_name}')
+        print(f'--Executing sync on index {index_name}')
 
         previous_index = get_index_with_alias(ES_ALIAS)
         delete_stale_indices([
@@ -184,14 +184,14 @@ def execute_sync():
         refresh_index(ES_ALIAS)
         end = time.time()
         minutes = round((end - start) / 60, 2)
-        logging.info(f'Completed in {minutes} minutes.')
+        print(f'Completed in {minutes} minutes.')
 
         if minutes > 4:
-            logging.info(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
+            print(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
             time.sleep(60)
 
     except Exception as general_exception:
-        logging.info(
+        print(
             f'Error ingesting data into {index_name}.' + \
             f'Removing new index. Exception: {str(general_exception)}'
         )
@@ -208,7 +208,7 @@ def background_task():
         try:
             execute_sync()
         except Exception as general_exception:
-            logging.info(f'Error executing sync. Exception: {str(general_exception)}')
+            print(f'Error executing sync. Exception: {str(general_exception)}')
             traceback.print_exc()
         finally:
             time.sleep(60)

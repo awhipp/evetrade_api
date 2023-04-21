@@ -4,9 +4,6 @@ Helper functions for the project
 import locale
 locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
 
-import logging
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-
 def round_value(value: float, amount: int) -> str:
     '''
     Round a float to a specified amount of decimal places
@@ -44,7 +41,7 @@ def remove_mismatch_type_ids(list_one: list, list_two: list) -> dict:
         if item_id not in from_orders:
             del to_orders[item_id]
     
-    logging.info(f"After: Buy ID Count = {len(from_orders)} and Sell ID Count = {len(to_orders)}") # pylint: disable=logging-fstring-interpolation
+    print(f"After: Buy ID Count = {len(from_orders)} and Sell ID Count = {len(to_orders)}") # pylint: disable=logging-fstring-interpolation
     
     return {
         'from': from_orders,

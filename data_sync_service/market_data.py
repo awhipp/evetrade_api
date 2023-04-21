@@ -51,7 +51,7 @@ class MarketData:
         limit_remain = int(response.headers['X-Esi-Error-Limit-Remain'])
 
         if limit_remain < 10:
-            logging.info(f'WARNING: ESI limit remaining is {limit_remain}')
+            print(f'WARNING: ESI limit remaining is {limit_remain}')
             time.sleep(5)
 
     @staticmethod

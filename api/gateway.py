@@ -7,9 +7,6 @@ import json
 import asyncio
 from typing import Any, Dict, List, Union, Literal
 
-import logging
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-
 import redis
 
 
@@ -52,22 +49,22 @@ def check_authorization(headers: dict) -> int:
         if 'x-forwarded-for' in headers:
             ip_address = headers['x-forwarded-for']
             if ip_address in IP_WHITE_LIST:
-                logging.info(f"White Listed IP: {ip_address}")
+                print(f"White Listed IP: {ip_address}")
                 return HTTPStatus.WHITELISTED
             elif ip_address in IP_BAN_LIST:
-                logging.info(f"Banned IP: {ip_address}")
+                print(f"Banned IP: {ip_address}")
                 return HTTPStatus.UNAUTHORIZED
 
         for key in headers:
             if key.lower().find('postman') >= 0:
-                logging.info(f"Invalid header contains Postman: {key}")
+                print(f"Invalid header contains Postman: {key}")
                 return HTTPStatus.UNAUTHORIZED
 
     if 'origin' not in headers:
-        logging.info("Origin not in headers.")
+        print("Origin not in headers.")
         return HTTPStatus.UNAUTHORIZED
     elif 'evetrade.space' not in headers['origin'] and 'evetrade.netlify.app' not in headers['origin']:
-        logging.info("Not originating from evetrade.space domain.")
+        print("Not originating from evetrade.space domain.")
         return HTTPStatus.UNAUTHORIZED
     else:
         return HTTPStatus.OK
@@ -90,7 +87,7 @@ def check_rate_limit(headers) -> Union[
         redis_client.expire(rate_limit_key, RATE_LIMIT_INTERVAL)
 
     # Check if the current count exceeds the rate limit
-    logging.info(f"{rate_limit_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT}.")
+    print(f"{rate_limit_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT}.")
 
     concurrent_limit_key = f'concurrent_count_limit:{receiving_ip}'
     concurrent_count = int( redis_client.get(concurrent_limit_key) or 0 )
@@ -98,7 +95,7 @@ def check_rate_limit(headers) -> Union[
     # Concurrent Rate Limit (if numerous rate limit hit in short time)
     if current_count > RATE_LIMIT_COUNT:
         concurrent_count = redis_client.incr(concurrent_limit_key)
-        logging.info(f"{concurrent_limit_key} - Current Count: {concurrent_count} of {RATE_LIMIT_COUNT * 2} today.")
+        print(f"{concurrent_limit_key} - Current Count: {concurrent_count} of {RATE_LIMIT_COUNT * 2} today.")
 
         if concurrent_count == 1:
             redis_client.expire(concurrent_limit_key, RATE_LIMIT_INTERVAL * 60 * 24)
@@ -109,7 +106,7 @@ def check_rate_limit(headers) -> Union[
     
     daily_count_key = f'daily_rate_limit:{receiving_ip}'
     daily_count = redis_client.incr(daily_count_key)
-    logging.info(f"{daily_count_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT}.")
+    print(f"{daily_count_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT}.")
 
     # Daily Rate Limit
     if daily_count > RATE_LIMIT_COUNT * RATE_LIMIT_INTERVAL:
@@ -117,7 +114,7 @@ def check_rate_limit(headers) -> Union[
         return HTTPStatus.TOO_MANY_REQUESTS
 
     if concurrent_count >= 10:
-        logging.info(f"{concurrent_limit_key} - Concurrent Rate Limit: {concurrent_count} of {RATE_LIMIT_COUNT*2} today.")
+        print(f"{concurrent_limit_key} - Concurrent Rate Limit: {concurrent_count} of {RATE_LIMIT_COUNT*2} today.")
         return HTTPStatus.FORBIDDEN
     # Standard Rate Limit in short time
     elif current_count > RATE_LIMIT_INTERVAL:
@@ -142,14 +139,14 @@ def gateway (
     rate_limit_exceeded = HTTPStatus.OK if authorization == HTTPStatus.WHITELISTED else check_rate_limit(request['headers'])
 
     if rate_limit_exceeded == 429:
-        logging.info('Rate Limit Exceeded: ' + request['headers']['x-forwarded-for'])
+        print('Rate Limit Exceeded: ' + request['headers']['x-forwarded-for'])
         return {
             'statusCode': 429,
             'body': 'Too Many Requests.'
         }
 
     if rate_limit_exceeded == 403:
-        logging.info('Rate Limit Exceeded 10 times: ' + request['headers']['x-forwarded-for'])
+        print('Rate Limit Exceeded 10 times: ' + request['headers']['x-forwarded-for'])
         return {
             'statusCode': 403,
             'body': 'Forbidden.'
@@ -180,7 +177,7 @@ def lambda_handler(
     AWS Lambda function that routes incoming requests to the appropriate
     downstream Lambda function based on the rawPath field of the event.
     """
-    logging.info(event)
+    print(event)
 
     # TODO implement streaming responses when released for python
     response = gateway(event)

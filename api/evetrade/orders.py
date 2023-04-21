@@ -7,9 +7,6 @@ import http.client
 from urllib.parse import urlencode
 from datetime import datetime
 
-import logging
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-
 from api.utils.helpers import round_value
 
 async def retrieve_orders(
@@ -64,7 +61,7 @@ async def get(event: Dict[str, Any]) -> Dict[str, Any]:
         'from': await retrieve_orders(item_id, from_region_id, from_station_id, from_type),
         'to': await retrieve_orders(item_id, to_region_id, to_station_id, to_type),
     }
-    logging.info(f"Full analysis took: {(datetime.now() - start_time).total_seconds()} seconds to process.")
-    logging.info(f"Found {len(orders['from'] + orders['to'])} orders at stations.")
+    print(f"Full analysis took: {(datetime.now() - start_time).total_seconds()} seconds to process.")
+    print(f"Found {len(orders['from'] + orders['to'])} orders at stations.")
 
     return orders

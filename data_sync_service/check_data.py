@@ -29,12 +29,12 @@ def get_recent_values(index_name):
 
 ten_minutes_ago = time.time() - (10 * 60)
 
-logging.info(f'Getting most recent document. 10 minutes ago was: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ten_minutes_ago))}')
+print(f'Getting most recent document. 10 minutes ago was: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ten_minutes_ago))}')
 
 results = get_recent_values('market_data')
 last_order_time = int(results[0]['sort'][0])/1000
 
-logging.info(f'Most recent document was from from: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(last_order_time))}')
+print(f'Most recent document was from from: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(last_order_time))}')
 
 if time.time() - 60*10 > last_order_time:
     raise Exception('No new data ingested into Elasticsearch index for the last 10 minutes.')
@@ -42,6 +42,6 @@ if time.time() - 60*10 > last_order_time:
 status_code = urllib.request.urlopen('https://evetrade-api.herokuapp.com/').getcode()
 
 if status_code == 200:
-    logging.info('EVETrade Data Sync Service is up.')
+    print('EVETrade Data Sync Service is up.')
 else:
     raise Exception('EVETrade Data Sync Service is not running.')
