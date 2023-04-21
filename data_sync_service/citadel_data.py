@@ -31,7 +31,7 @@ def generate_auth_url(esi_security):
     Generates an auth URL from the ESI endpoint (not used)
     '''
     from uuid import uuid4
-    print(
+    logging.info(
         esi_security.get_auth_uri(
             state=str(uuid4()),
             scopes=['esi-universe.read_structures.v1', 'esi-markets.structure_markets.v1']
@@ -43,7 +43,7 @@ def generate_token(esi_security):
     '''
     Generates the access token from the ESI endpoint (not used)
     '''
-    print(esi_security.auth('TO_ADD'))
+    logging.info(esi_security.auth('TO_ADD'))
 
 def refresh_token(token):
     '''
@@ -85,7 +85,7 @@ def get_citadel_data(access_token, citadel_id):
             total_pages = int(response.headers['X-Pages'])
             citadel_orders += data
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            logging.info(f"Error: {response.status_code} - {response.text}")
             break
 
     return citadel_orders
@@ -95,12 +95,12 @@ def get_all_orders(access_token, citadels):
     '''
     Get all citadel orders
     '''
-    print(f"Processing Total Citadels: {len(citadels)}")
+    logging.info(f"Processing Total Citadels: {len(citadels)}")
 
     citadel_orders = []
     for idx, citadel in enumerate(citadels):
         citadel_orders += get_citadel_data(access_token, citadel)
-        print(f"-- Citadel Order Percentage: {round((idx + 1) / len(citadels) * 100, 2)}%")
+        logging.info(f"-- Citadel Order Percentage: {round((idx + 1) / len(citadels) * 100, 2)}%")
 
     return citadel_orders
 
@@ -181,7 +181,7 @@ def get_citadel_orders():
     orders = find_best_orders(orders)
     end = time.time()
 
-    print(f"Sample Order: {orders[0]}")
-    print(f"Time to pull Citadels: {end - start} seconds")
+    logging.info(f"Sample Order: {orders[0]}")
+    logging.info(f"Time to pull Citadels: {end - start} seconds")
     orders = [json.dumps(record) for record in orders]
     return orders

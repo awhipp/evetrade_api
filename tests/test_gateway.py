@@ -1,10 +1,11 @@
 '''
 This file is used to test the API locally.
 '''
-import pytest
-
 from dotenv import load_dotenv
 load_dotenv()
+
+import logging
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 from api.gateway import gateway
 

@@ -7,6 +7,9 @@ from elasticsearch import Elasticsearch
 import redis
 import requests
 
+import logging
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
 from api.utils.helpers import round_value, remove_mismatch_type_ids
 
 redis_client = redis.Redis(
@@ -56,12 +59,12 @@ async def get_orders(location, is_buy_order) -> list:
     all_hits = response['hits']['hits']
 
     scroll_id = response['_scroll_id']
-    print(f"Retrieved {len(all_hits)} of {response['hits']['total']['value']} total hits.")
+    logging.info(f"Retrieved {len(all_hits)} of {response['hits']['total']['value']} total hits.")
 
     while response['hits']['total']['value'] != len(all_hits):
         scroll_response = es_client.scroll(scroll_id=scroll_id, scroll='10s') # pylint: disable=E1123
         all_hits = all_hits + scroll_response['hits']['hits']
-        print(f"Retrieved {len(all_hits)} of {scroll_response['hits']['total']['value']} total hits.")
+        logging.info(f"Retrieved {len(all_hits)} of {scroll_response['hits']['total']['value']} total hits.")
 
     all_orders = []
     for hit in all_hits:
@@ -151,7 +154,7 @@ async def get(event: dict) -> list:
 
     orders = list(filter(lambda item: item['Volume'] > MIN_VOLUME, orders))
 
-    print(f"Full analysis took: {(datetime.now() - start_time).total_seconds()} seconds to process.")
-    print(f"Found {len(orders)} profitable trades.")
+    logging.info(f"Full analysis took: {(datetime.now() - start_time).total_seconds()} seconds to process.")
+    logging.info(f"Found {len(orders)} profitable trades.")
 
     return orders

@@ -11,6 +11,9 @@ import requests
 from elasticsearch import Elasticsearch
 from api.utils.helpers import round_value, remove_mismatch_type_ids
 
+import logging
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
 
 type_id_to_name: dict = requests.get(
     'https://evetrade.s3.amazonaws.com/resources/typeIDToName.json', timeout=30
@@ -122,14 +125,14 @@ async def get_orders(location_string: str, order_type: str, structure_type: str)
     all_hits = all_hits + response['hits']['hits']
 
     scroll_id = response['_scroll_id']
-    print(f"Retrieved {len(all_hits)} of {response['hits']['total']['value']} total hits.")
+    logging.info(f"Retrieved {len(all_hits)} of {response['hits']['total']['value']} total hits.")
 
     while response['hits']['total']['value'] != len(all_hits):
         scroll_response = es_client.scroll(  # pylint: disable=E1123
             scroll_id=scroll_id, scroll='10s'
         )
         all_hits = all_hits + scroll_response['hits']['hits']
-        print(f"Retrieved {len(all_hits)} of {scroll_response['hits']['total']['value']} total hits.")
+        logging.info(f"Retrieved {len(all_hits)} of {scroll_response['hits']['total']['value']} total hits.")
 
     all_orders = []
     for hit in all_hits:
@@ -172,7 +175,7 @@ async def get_routes(route_safety):
         )
 
         all_hits = response['hits']['hits']
-        print(f"Retrieved {len(all_hits)} routes for route chunk.")
+        logging.info(f"Retrieved {len(all_hits)} routes for route chunk.")
 
         for hit in all_hits:
             doc = hit['_source']
@@ -189,7 +192,7 @@ async def get_routes(route_safety):
                 if route not in sqs_messages_to_send:
                     sqs_messages_to_send.append(route)
 
-        print(f"Sending {len(sqs_messages_to_send)} messages to SQS to update routes.")
+        logging.info(f"Sending {len(sqs_messages_to_send)} messages to SQS to update routes.")
 
         for message in sqs_messages_to_send:
             start, end = message.split('-')
@@ -292,7 +295,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                             jump_count[f'{initial_order["system_id"]}-{closing_order["system_id"]}'] = ''
                     except Exception as unhandled_exception: # pylint: disable=broad-except
                         traceback.print_exc()
-                        print(f"Error processing trade {initial_order['type_id']} from {initial_order['station_id']} to {closing_order['station_id']}")
+                        logging.info(f"Error processing trade {initial_order['type_id']} from {initial_order['station_id']} to {closing_order['station_id']}")
                         continue
 
     return valid_trades
@@ -340,12 +343,12 @@ async def get(request) -> list:
     # Grab one item per station in each each (cheaper for sell orders, expensive for buy orders)
     # Remove type Ids that do not exist in each side of the trade
     orders = remove_mismatch_type_ids(orders['from'], orders['to'])
-    print(f"Retrieval took: {time.time() - startTime} seconds to process.")
+    logging.info(f"Retrieval took: {time.time() - startTime} seconds to process.")
 
     valid_trades = await get_valid_trades(orders['from'], orders['to'], SALES_TAX, MIN_PROFIT, MIN_ROI, MAX_BUDGET, MAX_WEIGHT, SYSTEM_SECURITY)
-    print(f"Valid Trades = {len(valid_trades)}")
+    logging.info(f"Valid Trades = {len(valid_trades)}")
 
-    print(f"Routes = {len(jump_count.keys())}")
+    logging.info(f"Routes = {len(jump_count.keys())}")
 
     route_data = await get_routes(ROUTE_SAFETY)
 
@@ -356,7 +359,7 @@ async def get(request) -> list:
         valid_trade['Jumps'] = round_value(route_data[f"{system_from}-{system_to}"], 0)
 
         if valid_trade['Jumps'] == '':
-            print(f"Sending message for empty jumps:{system_from}-{system_to}")
+            logging.info(f"Sending message for empty jumps:{system_from}-{system_to}")
             await send_message({
                 'start': system_from,
                 'end': system_to,
@@ -373,8 +376,8 @@ async def get(request) -> list:
 
     json_size = len(json.dumps(valid_trades).encode('utf-8'))
 
-    print(f"Truncated Valid Trades = {len(valid_trades)}")
-    print(f"Full analysis took {time.time() - startTime} seconds to process.")
-    print(f"Final payload size = {json_size/1024/1024} MB")
+    logging.info(f"Truncated Valid Trades = {len(valid_trades)}")
+    logging.info(f"Full analysis took {time.time() - startTime} seconds to process.")
+    logging.info(f"Final payload size = {json_size/1024/1024} MB")
 
     return valid_trades
