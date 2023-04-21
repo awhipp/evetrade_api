@@ -106,7 +106,7 @@ def check_rate_limit(headers) -> Union[
     
     daily_count_key = f'daily_rate_limit:{receiving_ip}'
     daily_count = redis_client.incr(daily_count_key)
-    print(f"{daily_count_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT}.")
+    print(f"{daily_count_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT*RATE_LIMIT_INTERVAL}.")
 
     # Daily Rate Limit
     if daily_count > RATE_LIMIT_COUNT * RATE_LIMIT_INTERVAL:
