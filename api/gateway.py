@@ -106,6 +106,8 @@ def check_rate_limit(headers) -> Union[
     
     daily_count_key = f'daily_rate_limit:{receiving_ip}'
     daily_count = redis_client.incr(daily_count_key)
+    if daily_count == 1:
+        redis_client.expire(daily_count_key, RATE_LIMIT_INTERVAL * 60 * 24 * 1)
     print(f"{daily_count_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT*RATE_LIMIT_INTERVAL}.")
 
     # Daily Rate Limit
@@ -181,4 +183,15 @@ def lambda_handler(
 
     # TODO implement streaming responses when released for python
     response = gateway(event)
+    
+    MB_MAX_SIZE = 5 * 1024 * 1024
+    print(f'Original Size: {len(json.dumps(response).encode("utf-8")) / 1024 / 1024} MB')
+    
+    while len(json.dumps(response).encode("utf-8")) > MB_MAX_SIZE:
+        # If large remove last 100 items
+        response = response[:-int(len(response)/10)]
+    
+    
+    print(f'New Size: {len(json.dumps(response).encode("utf-8")) / 1024 / 1024} MB')
+    
     return json.dumps(response)

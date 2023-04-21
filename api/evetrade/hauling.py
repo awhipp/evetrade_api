@@ -31,7 +31,7 @@ es_client = Elasticsearch([os.getenv('ES_HOST')])
 # Load the SQS SDK for Python
 sqs = boto3.client('sqs')
 
-async def send_message(payload: dict) -> None:
+def send_message(payload: dict) -> None:
     '''
     Sends message to SQS queue to reprocess jump count data if stale.
     '''
@@ -40,7 +40,7 @@ async def send_message(payload: dict) -> None:
         'QueueUrl': os.getenv('SQS_QUEUE_URL')
     }
 
-    await sqs.send_message(**params)
+    sqs.send_message(**params)
 
 
 async def get_orders(location_string: str, order_type: str, structure_type: str) -> list:
@@ -137,7 +137,7 @@ async def get_orders(location_string: str, order_type: str, structure_type: str)
     return all_orders
 
 
-async def get_routes(route_safety):
+def get_routes(route_safety):
     '''
     Get all routes from ES.
     '''
@@ -192,7 +192,7 @@ async def get_routes(route_safety):
 
         for message in sqs_messages_to_send:
             start, end = message.split('-')
-            await send_message({
+            send_message({
                 'start': start,
                 'end': end
             })
@@ -346,20 +346,22 @@ async def get(request) -> list:
 
     print(f"Routes = {len(jump_count.keys())}")
 
-    route_data = await get_routes(ROUTE_SAFETY)
+    route_data = get_routes(ROUTE_SAFETY)
 
     for _, valid_trade in enumerate(valid_trades):
         system_from = valid_trade['From']['system_id']
         system_to = valid_trade['Take To']['system_id']
 
-        valid_trade['Jumps'] = round_value(route_data[f"{system_from}-{system_to}"], 0)
+        valid_trade['Jumps'] = route_data[f"{system_from}-{system_to}"]
 
         if valid_trade['Jumps'] == '':
             print(f"Sending message for empty jumps:{system_from}-{system_to}")
-            await send_message({
+            send_message({
                 'start': system_from,
                 'end': system_to,
             })
+        else:
+            round_value(valid_trade['Jumps'], 0)
 
         if route_data[f"{system_from}-{system_to}"] > 0:
             valid_trade['Profit per Jump'] = round_value(valid_trade['Net Profit'] / int(valid_trade['Jumps']), 2)
