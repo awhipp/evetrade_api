@@ -2,7 +2,6 @@
 Helper functions for the project
 '''
 import locale
-
 locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
 
 def round_value(value: float, amount: int) -> str:
@@ -42,7 +41,7 @@ def remove_mismatch_type_ids(list_one: list, list_two: list) -> dict:
         if item_id not in from_orders:
             del to_orders[item_id]
     
-    print(f"After: Buy ID Count = {len(from_orders)} and Sell ID Count = {len(to_orders)}")
+    print(f"After: Buy ID Count = {len(from_orders)} and Sell ID Count = {len(to_orders)}") # pylint: disable=logging-fstring-interpolation
     
     return {
         'from': from_orders,

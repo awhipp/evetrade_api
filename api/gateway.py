@@ -6,7 +6,9 @@ import os
 import json
 import asyncio
 from typing import Any, Dict, List, Union, Literal
+
 import redis
+
 
 redis_client = redis.Redis(
     host=os.environ['REDIS_HOST'],
@@ -14,8 +16,17 @@ redis_client = redis.Redis(
     password=os.environ['REDIS_PASSWORD'],
 )
 
-IP_WHITE_LIST: List[str] = os.environ['IP_WHITE_LIST'].split(',')
-IP_BAN_LIST: List[str] = (os.environ['IP_BAN_LIST'] or '').split(',')
+def decode_env_redis(env_var: str) -> List[str]:
+    '''
+    Decode a Redis environment variable.
+    '''
+    return redis_client.get(env_var).decode(encoding='utf-8').replace('\n', '').split(',')
+
+IP_WHITE_LIST: List[str] = decode_env_redis('IP_WHITE_LIST')
+IP_BAN_LIST: List[str] = decode_env_redis('IP_BAN_LIST')
+
+RATE_LIMIT_COUNT = int(os.environ['RATE_LIMIT_COUNT'] or 5)
+RATE_LIMIT_INTERVAL = int(os.environ['RATE_LIMIT_INTERVAL'] or 60)
 
 # Def ENUM for HTTP status codes
 class HTTPStatus:
@@ -68,9 +79,6 @@ def check_rate_limit(headers) -> Union[
     receiving_ip = headers['x-forwarded-for']
     rate_limit_key = f'rate_limit:{receiving_ip}'
 
-    RATE_LIMIT_COUNT = int(os.environ['RATE_LIMIT_COUNT']) or 5
-    RATE_LIMIT_INTERVAL = int(os.environ['RATE_LIMIT_INTERVAL']) or 60
-
     # Get the current rate limit count for the IP address
     current_count = redis_client.incr(rate_limit_key)
    
@@ -81,23 +89,34 @@ def check_rate_limit(headers) -> Union[
     # Check if the current count exceeds the rate limit
     print(f"{rate_limit_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT}.")
 
-    daily_rate_limit_key = f'daily_rate_limit:{receiving_ip}'
-    daily_count = int( redis_client.get(daily_rate_limit_key) or 0 )
+    concurrent_limit_key = f'concurrent_count_limit:{receiving_ip}'
+    concurrent_count = int( redis_client.get(concurrent_limit_key) or 0 )
 
+    # Concurrent Rate Limit (if numerous rate limit hit in short time)
     if current_count > RATE_LIMIT_COUNT:
-        daily_count = redis_client.incr(daily_rate_limit_key)
-        print(f"{daily_rate_limit_key} - Daily Rate Limit: {daily_count} of {RATE_LIMIT_COUNT * 2} today.")
+        concurrent_count = redis_client.incr(concurrent_limit_key)
+        print(f"{concurrent_limit_key} - Current Count: {concurrent_count} of {RATE_LIMIT_COUNT * 2} today.")
 
-        if daily_count == 1:
-            redis_client.expire(daily_rate_limit_key, RATE_LIMIT_INTERVAL * 60 * 24)
+        if concurrent_count == 1:
+            redis_client.expire(concurrent_limit_key, RATE_LIMIT_INTERVAL * 60 * 24)
 
-        if daily_count == 10:
-            redis_client.expire(daily_rate_limit_key, RATE_LIMIT_INTERVAL * 60 * 24 * 7)
+        if concurrent_count == 10:
+            redis_client.expire(concurrent_limit_key, RATE_LIMIT_INTERVAL * 60 * 24 * 7)
             return HTTPStatus.FORBIDDEN
+    
+    daily_count_key = f'daily_rate_limit:{receiving_ip}'
+    daily_count = redis_client.incr(daily_count_key)
+    print(f"{daily_count_key} - Current Count: {current_count} of {RATE_LIMIT_COUNT*RATE_LIMIT_INTERVAL}.")
 
-    if daily_count >= 10:
-        print(f"{daily_rate_limit_key} - Daily Rate Limit: {daily_count} of {RATE_LIMIT_COUNT*2} today.")
+    # Daily Rate Limit
+    if daily_count > RATE_LIMIT_COUNT * RATE_LIMIT_INTERVAL:
+        redis_client.expire(concurrent_limit_key, RATE_LIMIT_INTERVAL * 60 * 24 * 1)
+        return HTTPStatus.TOO_MANY_REQUESTS
+
+    if concurrent_count >= 10:
+        print(f"{concurrent_limit_key} - Concurrent Rate Limit: {concurrent_count} of {RATE_LIMIT_COUNT*2} today.")
         return HTTPStatus.FORBIDDEN
+    # Standard Rate Limit in short time
     elif current_count > RATE_LIMIT_INTERVAL:
         return HTTPStatus.TOO_MANY_REQUESTS
     else:
@@ -153,13 +172,13 @@ def gateway (
 def lambda_handler(
     event: Dict[str, Any],
     context: Any # pylint: disable=unused-argument
-) -> Union[Dict[str, Any], None]:
+) -> str:
     """
     AWS Lambda function that routes incoming requests to the appropriate
     downstream Lambda function based on the rawPath field of the event.
     """
     print(event)
 
-    response = gateway(event)
     # TODO implement streaming responses when released for python
+    response = gateway(event)
     return json.dumps(response)

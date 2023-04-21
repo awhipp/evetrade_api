@@ -1,8 +1,6 @@
 '''
 This file is used to test the API locally.
 '''
-import pytest
-
 from dotenv import load_dotenv
 load_dotenv()
 

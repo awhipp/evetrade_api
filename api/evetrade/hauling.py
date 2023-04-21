@@ -5,12 +5,11 @@ import json
 import os
 import time
 from datetime import datetime
-import boto3
 import traceback
+import boto3
 import requests
 from elasticsearch import Elasticsearch
 from api.utils.helpers import round_value, remove_mismatch_type_ids
-
 
 type_id_to_name: dict = requests.get(
     'https://evetrade.s3.amazonaws.com/resources/typeIDToName.json', timeout=30

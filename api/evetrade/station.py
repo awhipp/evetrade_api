@@ -6,8 +6,9 @@ from datetime import datetime
 from elasticsearch import Elasticsearch
 import redis
 import requests
+from api.utils.helpers import round_value, remove_mismatch_type_ids\
 
-from api.utils.helpers import round_value, remove_mismatch_type_ids
+
 
 redis_client = redis.Redis(
     host=os.environ['REDIS_HOST'],
