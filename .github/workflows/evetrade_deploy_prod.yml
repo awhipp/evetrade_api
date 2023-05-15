@@ -27,5 +27,5 @@ jobs:
         env: 
           commit_message: ${{ github.event.head_commit.message }}
         run: |
-          aws lambda publish-version --function-name evetrade_api --description "${ commit_message:0:255 }" > /dev/null
+          aws lambda publish-version --function-name evetrade_api --description "${commit_message:0:255}" > /dev/null
           aws lambda update-alias --function-name evetrade_api --name evetrade_api_prod --function-version $(aws lambda list-versions-by-function --function-name evetrade_api  --query "max_by(Versions, &Version)" | jq -r '.Version')  > /dev/null
