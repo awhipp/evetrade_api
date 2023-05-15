@@ -229,8 +229,6 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                         closing_order_system_id = str(closing_order['system_id'])
 
                         volume = min(closing_order['volume_remain'], initial_order['volume_remain'])
-                        if volume <= 0: # If volume_remain is zero then the order should not exist
-                            continue
                         weight = type_id_to_name[initial_order_type_id]['volume'] * volume
 
                         # If weight is greater than max weight rearrange volume to be less than max weight
@@ -238,6 +236,11 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                         if weight > max_weight:
                             volume = (max_weight/ weight) * volume
                             weight = type_id_to_name[initial_order_type_id]['volume'] * volume
+                        
+                        quantity = round(volume, 0)
+
+                        if volume <= 0 or weight <= 0 or quantity <= 0: # Skip conditionals
+                            continue
 
                         initial_price = initial_order['price'] * volume
                         sale_price = closing_order['price'] * volume * (1 - tax)
@@ -264,7 +267,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                                     'rating': system_id_to_security[initial_order_system_id]['rating'],
                                     'citadel': initial_order['station_id'] > 99999999
                                 },
-                                'Quantity': round_value(volume, 0),
+                                'Quantity': round_value(quantity, 0),
                                 'Buy Price': round_value(initial_order['price'], 2),
                                 'Net Costs': round_value(volume * initial_order['price'], 2),
                                 'Take To': {

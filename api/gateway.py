@@ -103,6 +103,9 @@ def check_rate_limit(headers) -> Union[
         if concurrent_count == 10:
             redis_client.expire(concurrent_limit_key, RATE_LIMIT_INTERVAL * 60 * 24 * 7)
             return HTTPStatus.FORBIDDEN
+        
+        # Reset the rate limit count
+        redis_client.set(rate_limit_key, 0)
     
     daily_count_key = f'daily_rate_limit:{receiving_ip}'
     daily_count = redis_client.incr(daily_count_key)
@@ -135,7 +138,8 @@ def gateway (
     if authorization == HTTPStatus.UNAUTHORIZED:
         return {
             'statusCode': HTTPStatus.UNAUTHORIZED,
-            'body': 'Unauthorized.'
+            'body': 'Unauthorized.',
+            'ip': request['headers']['x-forwarded-for']
         }
 
     rate_limit_exceeded = HTTPStatus.OK if authorization == HTTPStatus.WHITELISTED else check_rate_limit(request['headers'])
@@ -144,14 +148,16 @@ def gateway (
         print('Rate Limit Exceeded: ' + request['headers']['x-forwarded-for'])
         return {
             'statusCode': 429,
-            'body': 'Too Many Requests.'
+            'body': 'Too Many Requests.',
+            'ip': request['headers']['x-forwarded-for']
         }
 
     if rate_limit_exceeded == 403:
         print('Rate Limit Exceeded 10 times: ' + request['headers']['x-forwarded-for'])
         return {
             'statusCode': 403,
-            'body': 'Forbidden.'
+            'body': 'Forbidden.',
+            'ip': request['headers']['x-forwarded-for']
         }
 
     path = request['rawPath']
