@@ -31,7 +31,7 @@ es_client = Elasticsearch([os.getenv('ES_HOST')])
 # Load the SQS SDK for Python
 sqs = boto3.client('sqs')
 
-async def send_message(payload: dict) -> None:
+def send_message(payload: dict) -> None:
     '''
     Sends message to SQS queue to reprocess jump count data if stale.
     '''
@@ -40,7 +40,7 @@ async def send_message(payload: dict) -> None:
         'QueueUrl': os.getenv('SQS_QUEUE_URL')
     }
 
-    await sqs.send_message(**params)
+    sqs.send_message(**params)
 
 
 async def get_orders(location_string: str, order_type: str, structure_type: str) -> list:
@@ -137,7 +137,7 @@ async def get_orders(location_string: str, order_type: str, structure_type: str)
     return all_orders
 
 
-async def get_routes(route_safety):
+def get_routes(route_safety):
     '''
     Get all routes from ES.
     '''
@@ -192,7 +192,7 @@ async def get_routes(route_safety):
 
         for message in sqs_messages_to_send:
             start, end = message.split('-')
-            await send_message({
+            send_message({
                 'start': start,
                 'end': end
             })
@@ -229,8 +229,6 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                         closing_order_system_id = str(closing_order['system_id'])
 
                         volume = min(closing_order['volume_remain'], initial_order['volume_remain'])
-                        if volume <= 0: # If volume_remain is zero then the order should not exist
-                            continue
                         weight = type_id_to_name[initial_order_type_id]['volume'] * volume
 
                         # If weight is greater than max weight rearrange volume to be less than max weight
@@ -238,6 +236,11 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                         if weight > max_weight:
                             volume = (max_weight/ weight) * volume
                             weight = type_id_to_name[initial_order_type_id]['volume'] * volume
+                        
+                        quantity = round(volume, 0)
+
+                        if volume <= 0 or weight <= 0 or quantity <= 0: # Skip conditionals
+                            continue
 
                         initial_price = initial_order['price'] * volume
                         sale_price = closing_order['price'] * volume * (1 - tax)
@@ -264,7 +267,7 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
                                     'rating': system_id_to_security[initial_order_system_id]['rating'],
                                     'citadel': initial_order['station_id'] > 99999999
                                 },
-                                'Quantity': round_value(volume, 0),
+                                'Quantity': round_value(quantity, 0),
                                 'Buy Price': round_value(initial_order['price'], 2),
                                 'Net Costs': round_value(volume * initial_order['price'], 2),
                                 'Take To': {
@@ -346,20 +349,22 @@ async def get(request) -> list:
 
     print(f"Routes = {len(jump_count.keys())}")
 
-    route_data = await get_routes(ROUTE_SAFETY)
+    route_data = get_routes(ROUTE_SAFETY)
 
     for _, valid_trade in enumerate(valid_trades):
         system_from = valid_trade['From']['system_id']
         system_to = valid_trade['Take To']['system_id']
 
-        valid_trade['Jumps'] = round_value(route_data[f"{system_from}-{system_to}"], 0)
+        valid_trade['Jumps'] = route_data[f"{system_from}-{system_to}"]
 
         if valid_trade['Jumps'] == '':
             print(f"Sending message for empty jumps:{system_from}-{system_to}")
-            await send_message({
+            send_message({
                 'start': system_from,
                 'end': system_to,
             })
+        else:
+            round_value(valid_trade['Jumps'], 0)
 
         if route_data[f"{system_from}-{system_to}"] > 0:
             valid_trade['Profit per Jump'] = round_value(valid_trade['Net Profit'] / int(valid_trade['Jumps']), 2)

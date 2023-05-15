@@ -118,11 +118,12 @@ def check_rate_limit(headers) -> Union[
     if concurrent_count >= 10:
         print(f"{concurrent_limit_key} - Concurrent Rate Limit: {concurrent_count} of {RATE_LIMIT_COUNT*2} today.")
         return HTTPStatus.FORBIDDEN
+        
     # Standard Rate Limit in short time
-    elif current_count > RATE_LIMIT_INTERVAL:
+    if current_count > RATE_LIMIT_COUNT:
         return HTTPStatus.TOO_MANY_REQUESTS
-    else:
-        return HTTPStatus.OK
+    
+    return HTTPStatus.OK
 
 def gateway (
         request: Dict[str, Any]
@@ -135,7 +136,8 @@ def gateway (
     if authorization == HTTPStatus.UNAUTHORIZED:
         return {
             'statusCode': HTTPStatus.UNAUTHORIZED,
-            'body': 'Unauthorized.'
+            'body': 'Unauthorized.',
+            'ip': request['headers']['x-forwarded-for']
         }
 
     rate_limit_exceeded = HTTPStatus.OK if authorization == HTTPStatus.WHITELISTED else check_rate_limit(request['headers'])
@@ -144,14 +146,16 @@ def gateway (
         print('Rate Limit Exceeded: ' + request['headers']['x-forwarded-for'])
         return {
             'statusCode': 429,
-            'body': 'Too Many Requests.'
+            'body': 'Too Many Requests.',
+            'ip': request['headers']['x-forwarded-for']
         }
 
     if rate_limit_exceeded == 403:
         print('Rate Limit Exceeded 10 times: ' + request['headers']['x-forwarded-for'])
         return {
             'statusCode': 403,
-            'body': 'Forbidden.'
+            'body': 'Forbidden.',
+            'ip': request['headers']['x-forwarded-for']
         }
 
     path = request['rawPath']
@@ -188,8 +192,8 @@ def lambda_handler(
     print(f'Original Size: {len(json.dumps(response).encode("utf-8")) / 1024 / 1024} MB')
     
     while len(json.dumps(response).encode("utf-8")) > MB_MAX_SIZE:
-        # If large remove last 100 items
-        response = response[:-100]
+        # If large remove last 10% of items
+        response = response[:-int(len(response)/10)]
     
     
     print(f'New Size: {len(json.dumps(response).encode("utf-8")) / 1024 / 1024} MB')
