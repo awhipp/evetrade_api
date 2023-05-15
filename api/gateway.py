@@ -103,9 +103,6 @@ def check_rate_limit(headers) -> Union[
         if concurrent_count == 10:
             redis_client.expire(concurrent_limit_key, RATE_LIMIT_INTERVAL * 60 * 24 * 7)
             return HTTPStatus.FORBIDDEN
-        
-        # Reset the rate limit count
-        redis_client.set(rate_limit_key, 0)
     
     daily_count_key = f'daily_rate_limit:{receiving_ip}'
     daily_count = redis_client.incr(daily_count_key)
@@ -121,11 +118,12 @@ def check_rate_limit(headers) -> Union[
     if concurrent_count >= 10:
         print(f"{concurrent_limit_key} - Concurrent Rate Limit: {concurrent_count} of {RATE_LIMIT_COUNT*2} today.")
         return HTTPStatus.FORBIDDEN
+        
     # Standard Rate Limit in short time
-    elif current_count > RATE_LIMIT_INTERVAL:
+    if current_count > RATE_LIMIT_COUNT:
         return HTTPStatus.TOO_MANY_REQUESTS
-    else:
-        return HTTPStatus.OK
+    
+    return HTTPStatus.OK
 
 def gateway (
         request: Dict[str, Any]
