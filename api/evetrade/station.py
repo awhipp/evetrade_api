@@ -99,7 +99,7 @@ async def find_station_trades(orders, sales_tax, broker_fee, margin_limit, profi
                 item_volume = redis_client.get(f"{buy_order['region_id']}-{item_id}")
                 avg_volume = 0
                 if item_volume is not None:
-                    avg_volume = item_volume.decode().split(',')[0]
+                    avg_volume = item_volume.decode()
 
                 row = {
                     'Item ID': item_id,
