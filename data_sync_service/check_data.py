@@ -27,9 +27,9 @@ def get_recent_values(index_name):
     hits = es_client.search(index=index_name, body=query)
     return hits['hits']['hits']
 
-ten_minutes_ago = time.time() - (10 * 60)
+one_hour_ago = time.time() - (60 * 60)
 
-print(f'Getting most recent document. 10 minutes ago was: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ten_minutes_ago))}')
+print(f'Getting most recent document. 10 minutes ago was: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(one_hour_ago))}')
 
 results = get_recent_values('market_data')
 last_order_time = int(results[0]['sort'][0])/1000
