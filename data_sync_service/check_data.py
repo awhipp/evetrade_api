@@ -36,8 +36,8 @@ last_order_time = int(results[0]['sort'][0])/1000
 
 print(f'Most recent document was from from: {time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(last_order_time))}')
 
-if time.time() - 60*10 > last_order_time:
-    raise Exception('No new data ingested into Elasticsearch index for the last 10 minutes.')
+if time.time() - 60*60 > last_order_time:
+    raise Exception('No new data ingested into Elasticsearch index for the last 60 minutes.')
 
 status_code = urllib.request.urlopen('https://evetrade-api.herokuapp.com/').getcode()
 
