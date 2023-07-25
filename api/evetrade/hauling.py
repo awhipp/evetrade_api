@@ -350,7 +350,7 @@ async def get(request) -> list:
         universe_list = requests.get(
             'https://evetrade.s3.amazonaws.com/resources/universeList.json', timeout=30
         ).json()
-        TO = ','.join(map(str, get_nearby_regions(universe_list, FROM)))
+        TO = ','.join(map(str, get_nearby_regions(universe_list, FROM))) + "," + str(FROM)
 
     orders = {
         'from': await get_orders(FROM, FROM_TYPE, STRUCTURE_TYPE),
