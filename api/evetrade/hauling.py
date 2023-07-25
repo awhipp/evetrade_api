@@ -299,6 +299,17 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
 
     return valid_trades
 
+def get_nearby_regions(universe_list:dict, region_id: int) -> list:
+    '''
+    Returns a list of nearby regions given a region id.
+    '''
+    for key in universe_list:
+        if "around" in universe_list[key]:
+            if int(region_id) == universe_list[key]["id"]:
+                return universe_list[key]["around"]
+
+    return []
+
 def compare(a, b):
     '''
     Compare two trades by net profit
@@ -328,11 +339,18 @@ async def get(request) -> list:
     FROM = queries['from']
     TO = queries['to']
 
+
     FROM_TYPE = 'buy' if FROM.startswith('buy-') else 'sell'
     TO_TYPE = 'sell' if TO.startswith('sell-') else 'buy'
 
     FROM = FROM.replace('buy-', '').replace('sell-', '')
     TO = TO.replace('buy-', '').replace('sell-', '')
+
+    if TO == 'nearby':
+        universe_list = requests.get(
+            'https://evetrade.s3.amazonaws.com/resources/universeList.json', timeout=30
+        ).json()
+        TO = ','.join(map(str, get_nearby_regions(universe_list, FROM)))
 
     orders = {
         'from': await get_orders(FROM, FROM_TYPE, STRUCTURE_TYPE),
