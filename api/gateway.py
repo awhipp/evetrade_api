@@ -29,7 +29,7 @@ IP_WHITE_LIST: List[str] = decode_env_redis('IP_WHITE_LIST').replace('\n', '').s
 IP_BAN_LIST: List[str] = decode_env_redis('IP_BAN_LIST').replace('\n', '').split(',')
 
 RATE_LIMIT_COUNT = int(decode_env_redis('RATE_LIMIT_COUNT') or 5)
-RATE_LIMIT_INTERVAL = int(decode_env_redis('RATE_LIMIT_COUNT') or 60)
+RATE_LIMIT_INTERVAL = int(decode_env_redis('RATE_LIMIT_INTERVAL') or 60)
 
 # Def ENUM for HTTP status codes
 class HTTPStatus:
