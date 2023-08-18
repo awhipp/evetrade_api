@@ -20,13 +20,16 @@ def decode_env_redis(env_var: str) -> List[str]:
     '''
     Decode a Redis environment variable.
     '''
-    return redis_client.get(env_var).decode(encoding='utf-8').replace('\n', '').split(',')
+    try: 
+        return redis_client.get(env_var).decode(encoding='utf-8')
+    except:
+        return ''
 
-IP_WHITE_LIST: List[str] = decode_env_redis('IP_WHITE_LIST')
-IP_BAN_LIST: List[str] = decode_env_redis('IP_BAN_LIST')
+IP_WHITE_LIST: List[str] = decode_env_redis('IP_WHITE_LIST').replace('\n', '').split(',')
+IP_BAN_LIST: List[str] = decode_env_redis('IP_BAN_LIST').replace('\n', '').split(',')
 
-RATE_LIMIT_COUNT = int(os.environ['RATE_LIMIT_COUNT'] or 5)
-RATE_LIMIT_INTERVAL = int(os.environ['RATE_LIMIT_INTERVAL'] or 60)
+RATE_LIMIT_COUNT = int(decode_env_redis('RATE_LIMIT_COUNT') or 5)
+RATE_LIMIT_INTERVAL = int(decode_env_redis('RATE_LIMIT_INTERVAL') or 60)
 
 # Def ENUM for HTTP status codes
 class HTTPStatus:
