@@ -339,7 +339,6 @@ async def get(request) -> list:
     FROM = queries['from']
     TO = queries['to']
 
-
     FROM_TYPE = 'buy' if FROM.startswith('buy-') else 'sell'
     TO_TYPE = 'sell' if TO.startswith('sell-') else 'buy'
 
