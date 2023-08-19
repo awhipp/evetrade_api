@@ -99,6 +99,59 @@ def test_get_hauling(mock_boto_sqs) -> None:
             assert key in valid_keys
 
 
+def test_get_hauling_nearby(mock_boto_sqs) -> None:
+    '''
+    Test the hauling API with nearby regions
+    '''
+    # ASSIGN
+    params = {
+        "rawPath": "/hauling",
+        "headers": {
+            "x-forwarded-for": "127.0.0.1",
+            "origin": "https://evetrade.space"
+        },
+        "queryStringParameters": {
+            "from": "10000002",
+            "to": "nearby",
+            "tax": 0.08,
+            "minProfit": 500000,
+            "minROI": 0.05,
+            "routeSafety": "secure",
+            "maxWeight": 30000,
+        }
+    }
+
+    # ACT
+    result = gateway(params)
+    
+    # ASSERT
+    assert len(result) > 0
+
+    valid_keys = [
+        'Item ID',
+        'Item',
+        'From',
+        'Quantity',
+        'Buy Price',
+        'Net Costs',
+        'Take To',
+        'Sell Price',
+        'Net Sales',
+        'Gross Margin',
+        'Sales Taxes',
+        'Net Profit',
+        'Jumps',
+        'Profit per Jump',
+        'Profit Per Item',
+        'ROI',
+        'Total Volume (m3)'
+    ]
+
+    # All orders should have all keys in above list
+    for order in result:
+        for key in order:
+            assert key in valid_keys
+
 def test_get_stations() -> None:
     '''
     Test the get stations API.

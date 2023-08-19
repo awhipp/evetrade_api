@@ -196,7 +196,7 @@ def lambda_handler(
     
     while len(json.dumps(response).encode("utf-8")) > MB_MAX_SIZE:
         # If large remove last 10% of items
-        response = response[:-int(len(response)/10)]
+        response = response[:-int(len(response)/10)] # type: ignore
     
     
     print(f'New Size: {len(json.dumps(response).encode("utf-8")) / 1024 / 1024} MB')
