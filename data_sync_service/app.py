@@ -56,9 +56,12 @@ def get_data(index_name, region_ids):
     threads = []
     order_count = 0
 
-    orders = citadel_data.get_citadel_orders()
-    load_orders_to_es(index_name, orders, 'Citadels')
-    order_count = len(orders)
+    try:
+        orders = citadel_data.get_citadel_orders()
+        load_orders_to_es(index_name, orders, 'Citadels')
+        order_count = len(orders)
+    except Exception as e:
+	print(e)
 
     for region_id in region_ids:
 
