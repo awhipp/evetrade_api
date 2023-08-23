@@ -15,7 +15,7 @@ CLIENT_ID = os.getenv('ESI_CLIENT_ID', 'TO BE ADDED')
 SECRET_KEY = os.getenv('ESI_SECRET_KEY', 'TO BE ADDED')
 CALL_BACK = 'https://evetrade.space'
 USER_AGENT = 'EVETrade.space - https://evetrade.space - Structure Market Data Application'
-REFRESH_TOKEN = os.getenv('ESI_REFRESH_TOKEN', 'TO BE ADDED'),
+REFRESH_TOKEN = os.getenv('ESI_REFRESH_TOKEN', 'TO BE ADDED')
 
 
 security = EsiSecurity(
@@ -75,6 +75,8 @@ def get_citadel_data(access_token, citadel_id):
     page_idx = 0
     total_pages = 1
     citadel_orders = []
+    backoff_timer = 1
+    rate_limit = 100
 
     while page_idx < total_pages:
         page_idx += 1
@@ -84,11 +86,17 @@ def get_citadel_data(access_token, citadel_id):
             data = response.json()
             total_pages = int(response.headers['X-Pages'])
             citadel_orders += data
+            rate_limit = int(response.headers['X-Esi-Error-Limit-Remain'])
+            if rate_limit < 10:
+                print(f"Rate Limit: {rate_limit}")
+                time.sleep(60)
         else:
             print(f"Error: {response.status_code} - {response.text}")
+            time.sleep(backoff_timer)
+            backoff_timer *= 2
             break
 
-    return citadel_orders
+    return citadel_orders, rate_limit
 
 
 def get_all_orders(access_token, citadels):
@@ -99,8 +107,12 @@ def get_all_orders(access_token, citadels):
 
     citadel_orders = []
     for idx, citadel in enumerate(citadels):
-        citadel_orders += get_citadel_data(access_token, citadel)
+        orders, rate_limit = get_citadel_data(access_token, citadel)
+        citadel_orders += orders
         print(f"-- Citadel Order Percentage: {round((idx + 1) / len(citadels) * 100, 2)}%")
+        if rate_limit < 10:
+            print(f"Rate Limit: {rate_limit}")
+            time.sleep(60)
 
     return citadel_orders
 
@@ -184,4 +196,5 @@ def get_citadel_orders():
     print(f"Sample Order: {orders[0]}")
     print(f"Time to pull Citadels: {end - start} seconds")
     orders = [json.dumps(record) for record in orders]
+    time.sleep(60)
     return orders

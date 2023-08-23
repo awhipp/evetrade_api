@@ -23,6 +23,7 @@ class MarketData:
         self.region = region
         self.orders = []
         self.page_count = -1
+        self.backoff = 1
 
     def __repr__(self):
         '''
@@ -50,9 +51,10 @@ class MarketData:
 
         limit_remain = int(response.headers['X-Esi-Error-Limit-Remain'])
 
-        if limit_remain < 10:
+        if limit_remain < 20:
             print(f'WARNING: ESI limit remaining is {limit_remain}')
-            time.sleep(5)
+            time.sleep(self.backoff)
+            self.backoff *= 2
 
     @staticmethod
     async def get_market_data(session, url):
@@ -60,6 +62,11 @@ class MarketData:
         Asynchronously requests the market data for a given ESI page
         '''
         async with session.get(url) as resp:
+            limit_remain = int(resp.headers['X-Esi-Error-Limit-Remain'])
+            if limit_remain < 20:
+                print(f'WARNING: ESI limit remaining is {limit_remain}')
+                time.sleep(self.backoff)
+                self.backoff *= 2
             return await resp.json()
 
     async def execute_requests(self):
