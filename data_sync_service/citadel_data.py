@@ -110,6 +110,7 @@ def get_all_orders(access_token, citadels):
         orders, rate_limit = get_citadel_data(access_token, citadel)
         citadel_orders += orders
         print(f"-- Citadel Order Percentage: {round((idx + 1) / len(citadels) * 100, 2)}%")
+        time.sleep(5)
         if rate_limit < 10:
             print(f"Rate Limit: {rate_limit}")
             time.sleep(60)
