@@ -85,7 +85,10 @@ class MarketData:
             all_orders = await asyncio.gather(*tasks)
 
             for order_page in all_orders:
-                self.orders = self.orders + order_page
+                if isinstance(order_page, list):
+                    self.orders = self.orders + order_page
+                else:
+                    print(f'Not valid order_page: {order_page}')
 
         best_orders = {}
 
