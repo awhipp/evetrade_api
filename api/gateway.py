@@ -63,6 +63,9 @@ def check_authorization(headers: dict) -> int:
                 print(f"Invalid header contains Postman: {key}")
                 return HTTPStatus.UNAUTHORIZED
 
+    if 'referer' in headers and 'origin' not in headers:
+        headers['origin'] = headers['referer']
+
     if 'origin' not in headers:
         print("Origin not in headers.")
         return HTTPStatus.UNAUTHORIZED
