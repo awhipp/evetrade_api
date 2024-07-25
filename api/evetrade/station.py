@@ -138,7 +138,7 @@ async def get(event: dict) -> list:
     queries = event['queryStringParameters']
 
     STATION = queries['station']
-    SALES_TAX = float(queries.get('tax', 0.08))
+    SALES_TAX = float(queries.get('tax', 0.045))
     BROKER_FEE = float(queries.get('fee', 0.03))
     MARGINS = list(map(float, queries.get('margins', '0.20,0.40').split(',')))
     MIN_VOLUME = int(queries.get('min_volume', 1000))

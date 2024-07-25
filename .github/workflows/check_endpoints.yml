@@ -20,7 +20,7 @@ jobs:
     steps:
         
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Install Dependencies
         run: |
@@ -28,7 +28,7 @@ jobs:
 
       - name: Checking Hauling Endpoint
         run: |
-          curl -X GET "$HAULING_PROD_API?from=10000002:60003760&to=10000043:60008494&tax=0.08&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
+          curl -X GET "$HAULING_PROD_API?from=10000002:60003760&to=10000043:60008494&tax=0.045&minProfit=500000&minROI=0.05&maxBudget=99999999999&maxWeight=9999999&routeSafety=secure&systemSecurity=high_sec" | jq
 
       - name: Checking Orders Endpoint
         run: |
@@ -36,4 +36,4 @@ jobs:
 
       - name: Checking Station Trading Endpoint
         run: |
-          curl -X GET "$STATION_PROD_API?station=60003760&profit=1000&tax=0.08&fee=0.03&margins=0.20,0.30&min_volume=100000&volume_filter=1" | jq
+          curl -X GET "$STATION_PROD_API?station=60003760&profit=1000&tax=0.045&fee=0.03&margins=0.20,0.30&min_volume=100000&volume_filter=1" | jq

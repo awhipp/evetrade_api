@@ -59,7 +59,7 @@ def test_get_hauling(mock_boto_sqs) -> None:
         "queryStringParameters": {
             "from": "10000002",
             "to": "10000043",
-            "tax": 0.08,
+            "tax": 0.045,
             "minProfit": 500000,
             "minROI": 0.05,
             "routeSafety": "secure",
@@ -113,7 +113,7 @@ def test_get_hauling_nearby(mock_boto_sqs) -> None:
         "queryStringParameters": {
             "from": "10000002",
             "to": "nearby",
-            "tax": 0.08,
+            "tax": 0.045,
             "minProfit": 500000,
             "minROI": 0.05,
             "routeSafety": "secure",
@@ -165,7 +165,7 @@ def test_get_stations() -> None:
         },
         "queryStringParameters": {
             "station": "60008494",
-            "tax": "0.08",
+            "tax": "0.045",
             "fee": "0.03",
             "margins": "0.10,0.20",
             "min_volume": 1000,

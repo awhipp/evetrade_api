@@ -327,7 +327,7 @@ async def get(request) -> list:
     '''
     startTime = time.time()
     queries = request['queryStringParameters']
-    SALES_TAX = float(queries.get('tax', 0.08))
+    SALES_TAX = float(queries.get('tax', 0.045))
     MIN_PROFIT = float(queries.get('minProfit', 500000))
     MIN_ROI = float(queries.get('minROI', 0.04))
     MAX_BUDGET = float(queries.get('maxBudget', float('inf')))
