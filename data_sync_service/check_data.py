@@ -9,8 +9,9 @@ import urllib.request
 from elasticsearch import Elasticsearch
 
 ES_HOST = os.environ['ES_HOST']
+ES_TIMEOUT = int(os.environ.get('ES_TIMEOUT', 30))  # Default timeout is 30 seconds
 
-es_client = Elasticsearch(ES_HOST)
+es_client = Elasticsearch(ES_HOST, timeout=ES_TIMEOUT)
 
 def get_recent_values(index_name):
     '''
