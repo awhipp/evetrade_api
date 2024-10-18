@@ -1,19 +1,37 @@
 '''
 Service validation GitHub Action
 '''
-
 import os
 import time
 import urllib.request
 
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, RequestsHttpConnection
+from urllib3 import Timeout, PoolManager
 
 ES_HOST = os.environ['ES_HOST']
 ES_TIMEOUT = int(os.environ.get('ES_TIMEOUT', 30))  # Default timeout is 30 seconds
 ES_RETRY_ON_TIMEOUT = os.environ.get('ES_RETRY_ON_TIMEOUT', 'true').lower() == 'true'
 ES_RETRIES = int(os.environ.get('ES_RETRIES', 10))
 
-es_client = Elasticsearch(ES_HOST, timeout=ES_TIMEOUT, max_retries=ES_RETRIES, retry_on_timeout=ES_RETRY_ON_TIMEOUT)
+# Create a custom Timeout object
+custom_timeout = Timeout(connect=ES_TIMEOUT, read=ES_TIMEOUT)
+
+# Create a custom PoolManager with the custom timeout
+custom_pool = PoolManager(timeout=custom_timeout)
+
+# Create the Elasticsearch client with custom timeout settings
+es_client = Elasticsearch(
+    [ES_HOST],
+    connection_class=RequestsHttpConnection,
+    timeout=ES_TIMEOUT,
+    max_retries=ES_RETRIES,
+    retry_on_timeout=ES_RETRY_ON_TIMEOUT,
+    http_auth=('user', 'password'),  # Add your authentication if needed
+    use_ssl=True,
+    verify_certs=True,
+    ssl_show_warn=False,
+    connection_pool_class=custom_pool
+)
 
 def get_recent_values(index_name):
     '''
