@@ -10,8 +10,10 @@ from elasticsearch import Elasticsearch
 
 ES_HOST = os.environ['ES_HOST']
 ES_TIMEOUT = int(os.environ.get('ES_TIMEOUT', 30))  # Default timeout is 30 seconds
+ES_RETRY_ON_TIMEOUT = os.environ.get('ES_RETRY_ON_TIMEOUT', 'true').lower() == 'true'
+ES_RETRIES = int(os.environ.get('ES_RETRIES', 10))
 
-es_client = Elasticsearch(ES_HOST, timeout=ES_TIMEOUT)
+es_client = Elasticsearch(ES_HOST, timeout=ES_TIMEOUT, max_retries=ES_RETRIES, retry_on_timeout=ES_RETRY_ON_TIMEOUT)
 
 def get_recent_values(index_name):
     '''
