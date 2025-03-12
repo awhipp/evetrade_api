@@ -4,6 +4,6 @@ asyncio==3.4.3
 requests==2.27.1
 elasticsearch==7.10.1
 flask==2.1.2
-waitress==2.1.2
+waitress==3.0.1
 esipy==1.2.3
 Werkzeug==2.3.7
