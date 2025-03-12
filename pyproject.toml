@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "The backend and serverless api implementation for EVETrade.space"
 authors = ["awhipp"]
 readme = "README.md"
+packages = []
 package-mode = false
 
 [tool.poetry.dependencies]
