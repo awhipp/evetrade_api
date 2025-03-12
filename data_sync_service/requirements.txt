@@ -1,7 +1,7 @@
 boto3==1.21.42
 aiohttp==3.9.4
 asyncio==3.4.3
-requests==2.27.1
+requests==2.32.2
 elasticsearch==7.10.1
 flask==2.1.2
 waitress==2.1.2
