@@ -2,7 +2,37 @@
 Helper functions for the project
 '''
 import locale
+import time
+import requests
+
 locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
+
+# Cache for S3 resources with expiration
+_resource_cache = {}
+_cache_ttl = 3600  # 1 hour cache TTL
+
+def get_resource_from_s3(resource_url: str, ttl: int = _cache_ttl) -> dict:
+    '''
+    Fetches a resource from S3 with caching
+    '''
+    cache_key = resource_url
+    now = time.time()
+    
+    # Check if we have a valid cache entry
+    if cache_key in _resource_cache and now - _resource_cache[cache_key]['timestamp'] < ttl:
+        return _resource_cache[cache_key]['data']
+    
+    # Fetch the resource
+    response = requests.get(resource_url, timeout=30)
+    data = response.json()
+    
+    # Store in cache
+    _resource_cache[cache_key] = {
+        'data': data,
+        'timestamp': now
+    }
+    
+    return data
 
 def round_value(value: float, amount: int) -> str:
     '''
