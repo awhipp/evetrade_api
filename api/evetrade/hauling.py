@@ -9,20 +9,13 @@ import traceback
 import boto3
 import requests
 from elasticsearch import Elasticsearch
-from api.utils.helpers import round_value, remove_mismatch_type_ids
+from api.utils.helpers import round_value, remove_mismatch_type_ids, get_resource_from_s3
 
-type_id_to_name: dict = requests.get(
-    'https://evetrade.s3.amazonaws.com/resources/typeIDToName.json', timeout=30
-    ).json()
-station_id_to_name: dict = requests.get(
-    'https://evetrade.s3.amazonaws.com/resources/stationIdToName.json', timeout=30
-    ).json()
-system_id_to_security = requests.get(
-    'https://evetrade.s3.amazonaws.com/resources/systemIdToSecurity.json', timeout=30
-    ).json()
-structure_info: dict = requests.get(
-    'https://evetrade.s3.amazonaws.com/resources/structureInfo.json', timeout=30
-    ).json()
+# Use the new caching mechanism
+type_id_to_name = get_resource_from_s3('https://evetrade.s3.amazonaws.com/resources/typeIDToName.json')
+station_id_to_name = get_resource_from_s3('https://evetrade.s3.amazonaws.com/resources/stationIdToName.json')
+system_id_to_security = get_resource_from_s3('https://evetrade.s3.amazonaws.com/resources/systemIdToSecurity.json')
+structure_info = get_resource_from_s3('https://evetrade.s3.amazonaws.com/resources/structureInfo.json')
 
 jump_count = {}
 
@@ -105,30 +98,55 @@ async def get_orders(location_string: str, order_type: str, structure_type: str)
             }
         )
 
+    # Set a larger size to potentially reduce scroll operations
+    page_size = 10000
     all_hits = []
+    
+    # Use the search_after parameter instead of scroll for better performance
+    search_body = {
+        'query': {
+            'bool': must_clause
+        },
+        'sort': [
+            {'type_id': 'asc'},  # Sort by type_id for consistency
+            {'_id': 'asc'}       # Secondary sort by _id for pagination
+        ],
+        'size': page_size
+    }
+    
     response = es_client.search(  # pylint: disable=E1123
-        index='market_data', 
-        scroll='10s', 
-        size=10000, 
+        index='market_data',
         _source= ['volume_remain', 'price', 'station_id', 'system_id', 'type_id'], 
-        body={
-            'query': {
-                'bool': must_clause
-            }
-        }
+        body=search_body
     )
-
-    all_hits = all_hits + response['hits']['hits']
-
-    scroll_id = response['_scroll_id']
-    print(f"Retrieved {len(all_hits)} of {response['hits']['total']['value']} total hits.")
-
-    while response['hits']['total']['value'] != len(all_hits):
-        scroll_response = es_client.scroll(  # pylint: disable=E1123
-            scroll_id=scroll_id, scroll='10s'
+    
+    total_hits = response['hits']['total']['value']
+    current_hits = response['hits']['hits']
+    all_hits.extend(current_hits)
+    
+    print(f"Retrieved {len(all_hits)} of {total_hits} total hits.")
+    
+    # Continue fetching if necessary using search_after
+    while len(all_hits) < total_hits and current_hits:
+        # Get the sort values from the last hit for search_after
+        last_hit = current_hits[-1]
+        search_after = last_hit['sort']
+        
+        search_body['search_after'] = search_after
+        
+        response = es_client.search(  # pylint: disable=E1123
+            index='market_data',
+            _source= ['volume_remain', 'price', 'station_id', 'system_id', 'type_id'], 
+            body=search_body
         )
-        all_hits = all_hits + scroll_response['hits']['hits']
-        print(f"Retrieved {len(all_hits)} of {scroll_response['hits']['total']['value']} total hits.")
+        
+        current_hits = response['hits']['hits']
+        all_hits.extend(current_hits)
+        print(f"Retrieved {len(all_hits)} of {total_hits} total hits.")
+        
+        # Break if no more hits or we've reached the total
+        if not current_hits:
+            break
 
     all_orders = []
     for hit in all_hits:
@@ -141,6 +159,10 @@ def get_routes(route_safety):
     '''
     Get all routes from ES.
     '''
+    # Early return if no routes to query
+    if not jump_count:
+        return jump_count
+        
     should_clause = []
 
     for route in jump_count:
@@ -152,50 +174,59 @@ def get_routes(route_safety):
 
     sqs_messages_to_send = []
     chunk_size = 128
-
+    
+    # Batch processing to reduce ES round trips
     for i in range(0, len(should_clause), chunk_size):
         should_chunk = should_clause[i:i + chunk_size]
-
-        # first we do a search, and specify a scroll timeout
-        response = es_client.search( # pylint: disable=E1123
-            index='evetrade_jump_data', 
-            size=10000, 
-            _source=[route_safety, 'route', 'last_modified'], 
-            body={
-                'query': {
-                    'bool': {
-                        'should': should_chunk
-                    }
+        
+        # Use termination-aware search with efficient filter
+        search_body = {
+            'query': {
+                'bool': {
+                    'should': should_chunk,
+                    'minimum_should_match': 1
                 }
-            }
+            },
+            'size': 10000,
+            '_source': [route_safety, 'route', 'last_modified']
+        }
+
+        response = es_client.search(  # pylint: disable=E1123
+            index='evetrade_jump_data', 
+            body=search_body
         )
 
         all_hits = response['hits']['hits']
         print(f"Retrieved {len(all_hits)} routes for route chunk.")
+        
+        now_timestamp = datetime.now().timestamp() * 1000
+        thirty_days_ago = now_timestamp - (30 * 24 * 60 * 60 * 1000)  # 30 days in milliseconds
 
+        # Process all hits in a batch
         for hit in all_hits:
             doc = hit['_source']
             route = doc['route']
             jumps = doc[route_safety]
             jump_count[route] = jumps
 
-            # If last modified data is 30 days or older then send a message to SQS to check for update
-            last_modified = datetime.fromtimestamp(doc['last_modified']/1000)
-            now = datetime.now()
-            diff_days = (now - last_modified).days
-
-            if diff_days > 30:
+            # Check if data is stale using timestamp comparison
+            if doc['last_modified'] < thirty_days_ago:
                 if route not in sqs_messages_to_send:
                     sqs_messages_to_send.append(route)
 
-        print(f"Sending {len(sqs_messages_to_send)} messages to SQS to update routes.")
-
-        for message in sqs_messages_to_send:
-            start, end = message.split('-')
-            send_message({
-                'start': start,
-                'end': end
-            })
+        if sqs_messages_to_send:
+            print(f"Sending {len(sqs_messages_to_send)} messages to SQS to update routes.")
+            
+            # Batch send messages to SQS
+            for message in sqs_messages_to_send:
+                start, end = message.split('-')
+                send_message({
+                    'start': start,
+                    'end': end
+                })
+                
+            # Clear the list after sending
+            sqs_messages_to_send = []
 
     return jump_count
 
@@ -218,80 +249,132 @@ async def get_valid_trades(from_orders: dict, to_orders: dict, tax: float,
     '''
     ids = list(from_orders.keys())
     valid_trades = []
-
-    for item_id in ids:
-        if str(item_id) in type_id_to_name:
+    
+    # Pre-filter type_ids to avoid unnecessary lookups
+    valid_ids = [item_id for item_id in ids if str(item_id) in type_id_to_name]
+    
+    # Pre-compute security checks for systems to avoid repeated lookups
+    security_cache = {}
+    
+    # Batch processing to reduce memory pressure
+    batch_size = 100
+    
+    for i in range(0, len(valid_ids), batch_size):
+        batch_ids = valid_ids[i:i+batch_size]
+        
+        for item_id in batch_ids:
+            item_id_str = str(item_id)
+            if item_id_str not in type_id_to_name:
+                continue
+                
+            item_volume = type_id_to_name[item_id_str].get('volume', 0)
+            if item_volume <= 0:  # Skip items with no volume data
+                continue
+                
             for initial_order in from_orders[item_id]:
+                initial_order_system_id = str(initial_order['system_id'])
+                
+                # Check source security once per system
+                if initial_order_system_id not in security_cache:
+                    try:
+                        security_cache[initial_order_system_id] = system_id_to_security[initial_order_system_id]['security_code']
+                    except KeyError:
+                        print(f"Missing security data for system {initial_order_system_id}")
+                        continue
+                
+                source_security = security_cache[initial_order_system_id]
+                if source_security not in system_security:
+                    continue
+                    
                 for closing_order in to_orders[item_id]:
                     try:
-                        initial_order_type_id = str(initial_order['type_id'])
-                        initial_order_system_id = str(initial_order['system_id'])
                         closing_order_system_id = str(closing_order['system_id'])
-
-                        volume = min(closing_order['volume_remain'], initial_order['volume_remain'])
-                        weight = type_id_to_name[initial_order_type_id]['volume'] * volume
-
-                        # If weight is greater than max weight rearrange volume to be less than max weight
-                        # Then run conditional checks
-                        if weight > max_weight:
-                            volume = (max_weight/ weight) * volume
-                            weight = type_id_to_name[initial_order_type_id]['volume'] * volume
                         
-                        quantity = round(volume, 0)
-
-                        if volume <= 0 or weight <= 0 or quantity <= 0: # Skip conditionals
+                        # Check destination security once per system
+                        if closing_order_system_id not in security_cache:
+                            try:
+                                security_cache[closing_order_system_id] = system_id_to_security[closing_order_system_id]['security_code']
+                            except KeyError:
+                                print(f"Missing security data for system {closing_order_system_id}")
+                                continue
+                                
+                        destination_security = security_cache[closing_order_system_id]
+                        if destination_security not in system_security:
+                            continue
+                            
+                        # Early filter to reduce computation
+                        if closing_order['price'] <= initial_order['price']:
                             continue
 
+                        # Calculate volume and weight
+                        volume = min(closing_order['volume_remain'], initial_order['volume_remain'])
+                        weight = item_volume * volume
+
+                        # If weight is greater than max weight adjust volume
+                        if weight > max_weight:
+                            volume = max_weight / item_volume
+                            weight = item_volume * volume
+                        
+                        quantity = round(volume, 0)
+                        if volume <= 0 or weight <= 0 or quantity <= 0:
+                            continue
+
+                        # Calculate financials
                         initial_price = initial_order['price'] * volume
+                        
+                        # Budget check early to avoid unnecessary calculations
+                        if initial_price > max_budget:
+                            continue
+                            
                         sale_price = closing_order['price'] * volume * (1 - tax)
                         profit = sale_price - initial_price
-                        roi = (sale_price - initial_price) / initial_price
-                        source_security = system_id_to_security[initial_order_system_id]['security_code']
-                        destination_security = system_id_to_security[closing_order_system_id]['security_code']
+                        
+                        # Profit check early
+                        if profit < min_profit:
+                            continue
+                            
+                        roi = profit / initial_price
+                        
+                        # ROI check
+                        if roi < min_roi:
+                            continue
 
-                        valid_trade = profit >= min_profit and \
-                                      roi >= min_roi and \
-                                      initial_price <= max_budget and \
-                                      weight <= max_weight and \
-                                      source_security in system_security and \
-                                      destination_security in system_security
+                        # All checks passed, this is a valid trade
+                        initial_order_type_id = str(initial_order['type_id'])
+                        new_record = {
+                            'Item ID': initial_order_type_id,
+                            'Item': type_id_to_name[initial_order_type_id]['name'],
+                            'From': {
+                                'name': get_station_name(initial_order['station_id']),
+                                'station_id': initial_order['station_id'],
+                                'system_id': initial_order_system_id,
+                                'rating': system_id_to_security[initial_order_system_id]['rating'],
+                                'citadel': initial_order['station_id'] > 99999999
+                            },
+                            'Quantity': round_value(quantity, 0),
+                            'Buy Price': round_value(initial_order['price'], 2),
+                            'Net Costs': round_value(initial_price, 2),
+                            'Take To': {
+                                'name': get_station_name(closing_order['station_id']),
+                                'station_id': closing_order['station_id'],
+                                'system_id': closing_order_system_id,
+                                'rating': system_id_to_security[closing_order_system_id]['rating'],
+                                'citadel': closing_order['station_id'] > 99999999
+                            },
+                            'Sell Price': round_value(closing_order['price'], 2),
+                            'Net Sales': round_value(volume * closing_order['price'], 2),
+                            'Gross Margin': round_value(volume * (closing_order['price'] - initial_order['price']), 2),
+                            'Sales Taxes': round_value(volume * closing_order['price'] * tax, 2),
+                            'Net Profit': round_value(profit, 2),
+                            'Jumps': 0,
+                            'Profit per Jump': 0,
+                            'Profit Per Item': round_value(profit / volume, 2),
+                            'ROI': f"{round_value(100 * roi, 2)}%",
+                            'Total Volume (m3)': round_value(weight, 2),
+                        }
 
-                        if valid_trade:
-                            new_record = {
-                                'Item ID': initial_order_type_id,
-                                'Item': type_id_to_name[initial_order_type_id]['name'],
-                                'From': {
-                                    'name': get_station_name(initial_order['station_id']),
-                                    'station_id': initial_order['station_id'],
-                                    'system_id': initial_order_system_id,
-                                    'rating': system_id_to_security[initial_order_system_id]['rating'],
-                                    'citadel': initial_order['station_id'] > 99999999
-                                },
-                                'Quantity': round_value(quantity, 0),
-                                'Buy Price': round_value(initial_order['price'], 2),
-                                'Net Costs': round_value(volume * initial_order['price'], 2),
-                                'Take To': {
-                                    'name': get_station_name(closing_order['station_id']),
-                                    'station_id': closing_order['station_id'],
-                                    'system_id': closing_order_system_id,
-                                    'rating': system_id_to_security[closing_order_system_id]['rating'],
-                                    'citadel': closing_order['station_id'] > 99999999
-                                },
-                                'Sell Price': round_value(closing_order['price'], 2),
-                                'Net Sales': round_value(volume * closing_order['price'], 2),
-                                'Gross Margin': round_value(volume * (closing_order['price'] - initial_order['price']), 2),
-                                'Sales Taxes': round_value(volume * (closing_order['price'] * tax / 100), 2),
-                                'Net Profit': profit,
-                                'Jumps': 0,
-                                'Profit per Jump': 0,
-                                'Profit Per Item': round_value(profit / volume, 2),
-                                'ROI': f"{round_value(100 * roi, 2)}%",
-                                'Total Volume (m3)': round_value(weight, 2),
-                            }
-
-                            valid_trades.append(new_record)
-
-                            jump_count[f'{initial_order["system_id"]}-{closing_order["system_id"]}'] = ''
+                        valid_trades.append(new_record)
+                        jump_count[f'{initial_order["system_id"]}-{closing_order["system_id"]}'] = ''
                     except Exception as unhandled_exception: # pylint: disable=broad-except
                         traceback.print_exc()
                         print(f"Error processing trade {initial_order['type_id']} from {initial_order['station_id']} to {closing_order['station_id']}")
