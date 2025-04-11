@@ -8,8 +8,6 @@ import asyncio
 import aiohttp
 from urllib.parse import urlencode
 from datetime import datetime
-import functools
-import concurrent.futures
 
 from api.utils.helpers import round_value
 

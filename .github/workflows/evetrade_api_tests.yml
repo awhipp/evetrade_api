@@ -26,12 +26,6 @@ jobs:
       - name: Install Dependencies
         run: python -m poetry install
 
-      - name: Cache the virtualenv
-        uses: actions/cache@v4
-        with:
-          path: ./.venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
-
       - name: Run tests
         env: # Or as an environment variable
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
