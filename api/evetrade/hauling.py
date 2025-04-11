@@ -380,6 +380,12 @@ async def get(request) -> list:
                 'start': system_from,
                 'end': system_to,
             })
+        elif valid_trade['Jumps'] == -1:
+            print(f"Sending message for invalid jumps (-1):{system_from}-{system_to}")
+            send_message({
+                'start': system_from,
+                'end': system_to,
+            })
         else:
             round_value(valid_trade['Jumps'], 0)
 
