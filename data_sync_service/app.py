@@ -191,8 +191,8 @@ def execute_sync():
         print(f'Completed in {minutes} minutes.')
 
         if minutes > 4:
-            print(f'WARNING: Execution took {minutes} minutes. Stopping for 1 minute.')
-            time.sleep(60)
+            print(f'WARNING: Execution took {minutes} minutes. Stopping for 3 minutes.')
+            time.sleep(60*3)
 
     except Exception as general_exception:
         print(
