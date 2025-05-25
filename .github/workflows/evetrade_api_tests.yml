@@ -4,18 +4,20 @@ name: EVETrade API Tests
 on:
   [push, pull_request]
 
-# Add permissions needed for the coverage comment action
-permissions:
-  checks: write
-  pull-requests: write
-  contents: read
-
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
   test_evetrade_api:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    
+    # Add permissions at the job level instead of workflow level
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+      issues: write
+      statuses: write
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
