@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.9.13' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+          python-version: '3.12.1' # Version range or exact version of a Python version to use, using SemVer's version range syntax
           architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
 
       - name: Install poetry
@@ -46,7 +46,7 @@ jobs:
       - name: Generate Lambda Layer
         run: |
           mkdir python
-          mv .venv/lib/python3.9/site-packages/* python/
+          mv .venv/lib/python3.12/site-packages/* python/
           zip -r evetrade-api-layer.zip python
 
       - name: Generate Deployment Package
@@ -64,7 +64,7 @@ jobs:
         run: |
           aws lambda update-function-code --function-name evetrade_api --zip-file fileb://evetrade-api-deployment.zip > /dev/null
           export PACKAGES=`poetry show --only main  | awk '{ printf "%s ",$1 }'`
-          VERSION=$(aws lambda publish-layer-version --layer-name evetrade_api_layer --description "$PACKAGES" --compatible-runtimes python3.9 --compatible-architectures x86_64 --zip-file fileb://evetrade-api-layer.zip | jq -r '.Version')
+          VERSION=$(aws lambda publish-layer-version --layer-name evetrade_api_layer --description "$PACKAGES" --compatible-runtimes python3.12 --compatible-architectures x86_64 --zip-file fileb://evetrade-api-layer.zip | jq -r '.Version')
           aws lambda update-function-configuration --function-name evetrade_api --layers arn:aws:lambda:us-east-1:130613789231:layer:evetrade_api_layer:$VERSION > /dev/null
           aws lambda list-versions-by-function --function-name evetrade_api --no-paginate --query "max_by(Versions, &to_number(to_number(Version) || '0'))" | jq -r '.Version'
 

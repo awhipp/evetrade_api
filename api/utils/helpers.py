@@ -2,7 +2,13 @@
 Helper functions for the project
 '''
 import locale
-locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
+
+# Set locale with fallback for environments with limited locale support (like AWS Lambda)
+try:
+    locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
+except locale.Error:
+    # Fallback to C locale if default locale is not available
+    locale.setlocale(locale.LC_ALL, 'C')
 
 def round_value(value: float, amount: int) -> str:
     '''
