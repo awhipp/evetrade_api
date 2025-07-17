@@ -22,7 +22,7 @@ It has 3 components:
 
 ## Setup
 
-* Python 3.9
+* Python 3.12
 ** For API and for data sync service
 * Poetry
 * Environment Variables (see .env.example)
