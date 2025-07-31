@@ -35,7 +35,7 @@ jobs:
 
       - name: Grab Dependencies
         run: |
-          pip install -r ./data_sync_service/requirements.txt
+          pip install -r ./requirements.txt
 
       - name: Checking Data Sync
         run: |
