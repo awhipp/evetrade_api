@@ -7,7 +7,7 @@ def round_value(value: float, amount: int) -> str:
     Round a float to a specified amount of decimal places with comma grouping
     '''
     # Round the value to the specified decimal places
-    rounded_value = round(value, amount)
+    rounded_value = float(round(value, amount))
     
     # Format with commas using Python's built-in formatting
     if amount == 0:
