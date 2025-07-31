@@ -1,29 +1,19 @@
 '''
 Helper functions for the project
 '''
-import locale
-
-# Set locale with fallback for environments with limited locale support (like AWS Lambda)
-try:
-    locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
-except locale.Error:
-    # Fallback to en_US.UTF-8 or POSIX, which support number formatting
-    try:
-        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
-    except locale.Error:
-        try:
-            locale.setlocale(locale.LC_ALL, 'POSIX')
-        except locale.Error:
-            # Last resort: use C locale but this won't have comma grouping
-            locale.setlocale(locale.LC_ALL, 'C')
 
 def round_value(value: float, amount: int) -> str:
     '''
-    Round a float to a specified amount of decimal places
+    Round a float to a specified amount of decimal places with comma grouping
     '''
-    format_str = f'%.{amount}f'
-    formatted_num = locale.format_string(format_str, value, grouping=True)
-    return formatted_num
+    # Round the value to the specified decimal places
+    rounded_value = round(value, amount)
+    
+    # Format with commas using Python's built-in formatting
+    if amount == 0:
+        return f"{rounded_value:,.0f}"
+    else:
+        return f"{rounded_value:,.{amount}f}"
 
 
 def remove_mismatch_type_ids(list_one: list, list_two: list) -> dict:
