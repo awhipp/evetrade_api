@@ -7,8 +7,15 @@ import locale
 try:
     locale.setlocale(locale.LC_ALL, '')  # set the user's default locale
 except locale.Error:
-    # Fallback to C locale if default locale is not available
-    locale.setlocale(locale.LC_ALL, 'C')
+    # Fallback to en_US.UTF-8 or POSIX, which support number formatting
+    try:
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+    except locale.Error:
+        try:
+            locale.setlocale(locale.LC_ALL, 'POSIX')
+        except locale.Error:
+            # Last resort: use C locale but this won't have comma grouping
+            locale.setlocale(locale.LC_ALL, 'C')
 
 def round_value(value: float, amount: int) -> str:
     '''
