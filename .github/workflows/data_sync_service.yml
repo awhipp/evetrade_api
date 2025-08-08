@@ -1,0 +1,80 @@
+# EVETrade Data Sync GitHub Action
+name: Data Sync Service
+
+# Run on push to main and on a schedule
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'data_sync_service/**'
+  schedule:
+    # Run every hour at the top of the hour
+    - cron: '0 * * * *' 
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  AWS_BUCKET: ${{ secrets.AWS_BUCKET }}
+  ES_ALIAS: ${{ secrets.ES_ALIAS }}
+  ES_HOST: ${{ secrets.ES_HOST }}
+  ESI_CLIENT_ID: ${{ secrets.ESI_CLIENT_ID }}
+  ESI_SECRET_KEY: ${{ secrets.ESI_SECRET_KEY }}
+  ESI_REFRESH_TOKEN: ${{ secrets.ESI_REFRESH_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  data-sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.6.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: data_sync_service/.venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('data_sync_service/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: |
+          cd data_sync_service
+          poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: |
+          cd data_sync_service
+          poetry install --no-interaction
+
+      - name: Run data sync
+        run: |
+          cd data_sync_service
+          poetry run python main.py
+
+      - name: Run tests
+        run: |
+          cd data_sync_service
+          poetry run pytest tests/ -v --cov=data_sync_service --cov-report=xml
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: data_sync_service/coverage.xml
+          flags: data-sync-service
+          name: data-sync-coverage

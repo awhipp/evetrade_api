@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "evetrade-data-sync"
+version = "1.0.0"
+description = "Data synchronization service for EVETrade API"
+authors = ["awhipp"]
+readme = "README.md"
+packages = []
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.9"
+esipy = "^1.2.0"
+aiohttp = "^3.10.0"
+requests = "^2.32.0"
+elasticsearch = "~7.10.0"
+urllib3 = "^1.26.0"
+certifi = "^2023.7.0"
+idna = "^3.7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.0"
+pytest-mock = "^3.10.0"
+pytest-asyncio = "^0.21.0"
+pytest-cov = "^4.0.0"
+
+[tool.poetry.scripts]
+sync-data = "main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+asyncio_mode = "auto"
